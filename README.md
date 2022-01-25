@@ -28,9 +28,10 @@ version etc.
 
 ### Usage
 
-To reproduce any of the experiments of interest from the pipelin, you need only
+To reproduce any of the experiments of interest from the pipeline, you need only
 run the *run_experiments.py* script. If you do so without specifying any arguments, 
 you'll see the following screen:
+
 
 
 
