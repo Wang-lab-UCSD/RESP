@@ -32,7 +32,7 @@ To reproduce any of the experiments of interest from the pipeline, you need only
 run the *run_experiments.py* script. If you do so without specifying any arguments, 
 you'll see the following screen:
 
-
+![argparse_args](results_and_resources/run_experiments.png)
 
 
 which essentially provides a menu of experiments you can run. Note that some of these
