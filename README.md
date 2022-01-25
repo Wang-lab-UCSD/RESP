@@ -4,7 +4,6 @@ This repo contains the code used to generate the results from Parkinson / Hard e
 
 - [Installation](#Installation)
 - [Usage](#Usage)
-- [Citations](#Citations)
 
 ### Installation
 
@@ -43,10 +42,5 @@ to be retrained unless desired.
 Note that processing and encoding the raw read data is time-consuming and (for
 some of the encoding types we tested) computationally expensive. We highly recommend
 downloading the pre-encoded data instead.
-
-### Citations
-
-If using this code and/or pipeline for work intended for publication, please be
-sure to cite:
 
 
