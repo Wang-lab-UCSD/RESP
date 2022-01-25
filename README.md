@@ -1,4 +1,4 @@
-# PDL1_Bayesian_ML
+# In_silico_directed_evolution
 This repo contains the code used to generate the results from Parkinson / Hard et al.
 2021.
 
