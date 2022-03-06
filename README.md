@@ -1,6 +1,6 @@
 # In_silico_directed_evolution
 This repo contains the code used to generate the results from Parkinson / Hard et al.
-2021.
+2022.
 
 - [Installation](#Installation)
 - [Usage](#Usage)
