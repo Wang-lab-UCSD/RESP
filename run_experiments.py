@@ -81,7 +81,7 @@ def main():
         #Data is temporarily stored here (move to permanent location soon):
         #procstat = subprocess.run(["gdown", "1kmTs8XumNcUC8R4RQo90fk-8V_Yy7lmm"])
         tarfile = "encoded_data.tar.gz"
-        #shutil.move(tarfile, "encoded_data")
+        shutil.move(tarfile, "encoded_data")
         os.chdir("encoded_data")
         for f in os.listdir():
             if not f.endswith(".tar.gz"):
