@@ -1,4 +1,4 @@
-import argparse, os, sys, subprocess
+import argparse, os, sys, subprocess, shutil
 from src.model_training.model_training_code import train_evaluate_models
 from src.raw_data_processing.process_raw_reads import process_all_raw_reads
 from src.sequence_encoding.encode_sequences import sequence_encoding_wrapper
@@ -20,7 +20,8 @@ def gen_arg_parser():
             "can execute one step at a time, or specify all to perform all "
             "of them in sequence.")
     parser.add_argument("--setup", action="store_true", help=
-            "Download the raw sequence files from SRA.")
+            "Download the raw sequence files from SRA. NOTE: This feature "
+            "will only be available once raw reads are in SRA -- coming soon...")
     parser.add_argument("--processraw", action="store_true", help=
             "Process the raw sequences.")
     parser.add_argument("--downloadencodings", action="store_true", help=
@@ -76,6 +77,22 @@ def main():
         pass
     if args.processraw:
         process_all_raw_reads(start_dir)
+    if args.downloadencodings:
+        #Data is temporarily stored here (move to permanent location soon):
+        #procstat = subprocess.run(["gdown", "1kmTs8XumNcUC8R4RQo90fk-8V_Yy7lmm"])
+        tarfile = "encoded_data.tar.gz"
+        #shutil.move(tarfile, "encoded_data")
+        os.chdir("encoded_data")
+        for f in os.listdir():
+            if not f.endswith(".tar.gz"):
+                os.remove(f)
+        procstat = subprocess.run(["tar", "-xzf", tarfile])
+        os.chdir("encoded_data")
+        for f in os.listdir():
+            shutil.move(f, "..")
+        os.chdir("..")
+        os.rmdir("encoded_data")
+        os.remove("encoded_data.tar.gz")
     if args.encode:
         sequence_encoding_wrapper(start_dir)
         convert_to_fasta(start_dir)
