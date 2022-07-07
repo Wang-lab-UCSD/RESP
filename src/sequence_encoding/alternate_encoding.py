@@ -53,10 +53,13 @@ def alternate_processing(start_dir, position_dict, unused_positions):
         file_handle.close()
     print('Total seqs found: %s'%(len(seqdict)))
     print("%s seqs with unexpected mutations"%unexpected_mutation)
+    
+    random.seed(0)
 
     os.chdir(start_dir)
     os.chdir("encoded_data")
-    x, y = [], []
+    test_x, test_y = [], []
+    train_x, train_y = [], []
     for key in seqdict:
         x_array = ["-" for i in range(132)]
         for j, letter in enumerate(key):
@@ -67,31 +70,30 @@ def alternate_processing(start_dir, position_dict, unused_positions):
             unclear_category += 1
             continue
         out_seq = "".join(x_array)
-        for i, freq_count in enumerate(freq_counts.tolist()):
-            for j in range(int(freq_count)):
-                x.append(out_seq)
-                y.append(i)
-    print('full dataset size: %s'%(len(x)))
+        assignment = random.randint(1,10)
+        if assignment <= 8:
+            for i, freq_count in enumerate(freq_counts.tolist()):
+                for j in range(int(freq_count)):
+                    train_x.append(out_seq)
+                    train_y.append(i)
+        else:
+            for i, freq_count in enumerate(freq_counts.tolist()):
+                for j in range(int(freq_count)):
+                    test_x.append(out_seq)
+                    test_y.append(i)
+    print('full dataset size: %s'%(len(train_x) + len(test_x)))
+    print("Num train: %s"%len(train_x))
+    print("Num test: %s"%len(test_x))
     print(f"{unclear_category} unclear category")
-    random.seed(0)
-    idx = list(range(len(x)))
-    random.shuffle(idx)
-    x = [x[i] for i in idx]
-    y = [y[i] for i in idx]
-    cutoff = int(0.8 * len(y))
-    trainx = x[0:cutoff]
-    trainy = y[0:cutoff]
-
-    testx = x[cutoff:]
-    testy = y[cutoff:]
+    
     with open("all_training_combined.faa", "w+") as fhandle:
-        for x, y in zip(trainx, trainy):
-            fhandle.write(f">Category_{y}\n")
-            fhandle.write(f"{x}\n")
+        for t_x, t_y in zip(train_x, train_y):
+            fhandle.write(f">Category_{t_y}\n")
+            fhandle.write(f"{t_x}\n")
     with open("all_test_combined.faa", "w+") as fhandle:
-        for x, y in zip(testx, testy):
-            fhandle.write(f">Category_{y}\n")
-            fhandle.write(f"{x}\n")
+        for t_x, t_y in zip(test_x, test_y):
+            fhandle.write(f">Category_{t_y}\n")
+            fhandle.write(f"{t_x}\n")
 
 
 
