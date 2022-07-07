@@ -2,6 +2,7 @@ import argparse, os, sys, subprocess, shutil
 from src.model_training.model_training_code import train_evaluate_models
 from src.raw_data_processing.process_raw_reads import process_all_raw_reads
 from src.sequence_encoding.encode_sequences import sequence_encoding_wrapper
+from src.sequence_encoding.alternate_encoding import alternate_encoding_wrapper
 from src.sequence_encoding.Unirep_encoding import unirep_encoding_wrapper
 from src.simulated_annealing.run_markov_chains import run_annealing_chains
 from src.simulated_annealing.run_markov_chains import analyze_annealing_results
@@ -34,6 +35,9 @@ def gen_arg_parser():
             "described in the paper (e.g. Unirep, one-hot etc.) Be aware that for "
             "some encodings, primarily fair-esm, this may take considerable "
             "time -- downloading them is usually preferable.")
+    parser.add_argument("--altprocess", action="store_true", help=
+            "Process the compiled sequences into fasta files for use by other "
+            "routines.")
     parser.add_argument("--traintest", action="store_true", help=
             "Train models on the test set for each encoding and model type; "
             "reproduce the test set evaluation performed for the paper.")
@@ -79,7 +83,7 @@ def main():
         process_all_raw_reads(start_dir)
     if args.downloadencodings:
         #Data is temporarily stored here (move to permanent location soon):
-        #procstat = subprocess.run(["gdown", "1kmTs8XumNcUC8R4RQo90fk-8V_Yy7lmm"])
+        procstat = subprocess.run(["gdown", "1kmTs8XumNcUC8R4RQo90fk-8V_Yy7lmm"])
         tarfile = "encoded_data.tar.gz"
         shutil.move(tarfile, "encoded_data")
         os.chdir("encoded_data")
@@ -98,6 +102,8 @@ def main():
         convert_to_fasta(start_dir)
         unirep_encoding_wrapper(start_dir)
         fair_esm_wrapper(start_dir)
+    if args.altprocess:
+        alternate_encoding_wrapper(start_dir)
     if args.traintest:
         train_evaluate_models(start_dir, action_to_take="traintest_eval")
     if args.finalmodel:
