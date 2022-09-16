@@ -1,6 +1,6 @@
-#Simple script for processing the raw reads -- checking for any that are problematic,
-#merging the left and right reads and counting frequencies. It takes a single argument:
-#the path to a target directory.
+"""Simple script for processing the raw reads -- checking for any that are problematic,
+merging the left and right reads and counting frequencies. It takes a single argument:
+the path to a target directory."""
 
 #Author: Jonathan Parkinson <jlparkinson1@gmail.com>
 
@@ -11,9 +11,18 @@ from Bio import SeqIO
 
 
 
-#Helper function which determines whether the sequences match in the overlap
-#region and if so merges them.
 def adjust_and_merge(leftseq, rightseq):
+    """Helper function which determines whether the sequences match in the overlap
+    region and if so merges them.
+
+    Args:
+        leftseq (str): The left read
+        rightseq (str): The right read.
+
+    Returns:
+        merged_seq: Either the merged sequence as str if they could be merged,
+            otherwise, None.
+    """
     if compare_sequences(leftseq, rightseq):
         merged_seq = ''.join([leftseq[0:36], rightseq])
         if ('*' not in merged_seq and merged_seq.startswith('EVQ') 
@@ -21,15 +30,23 @@ def adjust_and_merge(leftseq, rightseq):
             return merged_seq
     return None
 
-#Determines whether the left and right reads match in the overlap region,
-#defined as 36:len(leftseq) on the left and 0:47 on the right (just based
-#on the read size and the way they were acquired).
 def compare_sequences(leftseq, rightseq):
+    """Determines whether the left and right reads match in the overlap region,
+    defined as 36:len(leftseq) on the left and 0:47 on the right (just based
+    on the read size and the way they were acquired).
+    Args:
+        leftseq (str): The left read
+        rightseq (str): The right read.
+
+    Returns:
+        match (bool): True if the overlaps match, False if they do not.
+    """
     if leftseq[36:] == rightseq[0:47]:
         return True
     return False
 
 def process_all_raw_reads(start_dir):
+    """Processes all raw reads from all datagroups."""
     os.chdir(start_dir)
     os.chdir("raw_data")
     fnames = os.listdir()
@@ -47,6 +64,10 @@ def process_all_raw_reads(start_dir):
         print("Raw data for %s complete\n"%target_dir)
 
 def process_single_raw_dataset(start_dir, category_filename):
+    """Processes a single raw datagroup and saves the resulting
+        amino acid sequences and frequencies as text files in an
+        appropriate location for retrieval by other scripts.
+    """
     fastq_filenames = [x for x in os.listdir() if x.endswith('.fastq.gz')]
     if len(fastq_filenames) != 2:
         print("One of the raw data files is missing. Please run --setup before proceeding.")

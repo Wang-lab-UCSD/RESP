@@ -23,6 +23,7 @@ from ..model_code.variational_Bayes_ordinal_reg import bayes_ordinal_nn as BON
 from sklearn.model_selection import KFold
 import time
 
+#TODO: Move full_wt_seq and aas to a constants file.
 full_wt_seq = ('EVQLVESGGGLVQPGGSLRLSCAASGFTFSD--SWIHWVRQAPGKGLEWVAWISP--'
                 'YGGSTYYADSVKGRFTISADTSKNTAYLQMNSLRAEDTAVYYCARRHWPGGF----------DYWGQGTLVTVSS')
 
@@ -30,10 +31,21 @@ aas = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P',
        'Q', 'R', 'S', 'T', 'V', 'W', 'Y', '-']
 
 
-#This function is used to generate class weights for the random forest and
-#fully connected classifiers, which are generated as baselines for comparison
-#with the variational network.
 def get_class_weights(y, as_dict = False):
+    """This function is used to generate class weights for the random forest and
+    fully connected classifiers, which are generated as baselines for comparison
+    with the variational network.
+
+    Args:
+        y (tensor): The y data. Should be an N x 4 array. The first two columns
+            are class labels encoded for ordinal regression. Last two are
+            class label as integer and datapoint weight.
+        as_dict (bool): If True, return the weights as a dictionary (for random
+            forest model).
+
+    Returns:
+        class_weights: Either a tensor (as_dict = False) or a dict.
+    """
     classes = y[:,-2].numpy()
     n_instances = np.asarray([classes.shape[0] / np.argwhere(classes==0).shape[0],
                                 classes.shape[0] / np.argwhere(classes==1).shape[0],
@@ -44,9 +56,22 @@ def get_class_weights(y, as_dict = False):
     return {0:n_instances[0], 1:n_instances[1], 2:n_instances[2]}
 
 
-#This function builds the specified model type on the specified encoding
-#type for each split in a 5x CV on the training set only.
 def score_cv(start_dir, data_type, num_epochs, model_type):
+    """This function builds the specified model type on the specified encoding
+    type for each split in a 5x CV on the training set only.
+
+    Args:
+        start_dir (str): A path to the project directory.
+        data_type (str): The type of data (e.g. one hot encoded etc).
+        num_epochs (int): The number of training epochs.
+        model_type (str): The type of model (e.g. fully connected etc).
+
+    Returns:
+        mean_MCC (float): The matthews corrcoef.
+        MCC_std (float): The standard deviation on matthews corrcoef.
+        mean_auc (float): The AUC-ROC.
+        auc_std (float): The standard deviation on AUC-ROC.
+    """
     trainx, trainy, testx, testy = load_data(start_dir, data_type)
     if trainx is None:
         raise ValueError("The data type selected by model_training_code "
@@ -115,8 +140,9 @@ def score_cv(start_dir, data_type, num_epochs, model_type):
     return np.mean(cv_mccs), np.std(cv_mccs, ddof=1), np.mean(cv_aucs), np.std(cv_aucs, ddof=1)
 
 
-#Convenience function for running 5x CVs.
 def run_all_5x_cvs(start_dir):
+    """Convenience function for running 5x CVs for all data types
+        and models at the same time."""
     os.chdir(os.path.join(start_dir, "encoded_data"))
     fnames = os.listdir()
     #This is a little...clunky, but because of the way the pipeline is set up, we have to encode the
@@ -132,20 +158,20 @@ def run_all_5x_cvs(start_dir):
     cv_results_dict = dict()
     #Skipping fair_esm since results were truly dismal. If you want to add it in
     #please do, but it is expensive and performs very badly.
-    cv_results_dict["adapted_FCNN"] = score_cv(start_dir, "adapted", 
+    cv_results_dict["adapted_FCNN"] = score_cv(start_dir, "adapted",
                     num_epochs=45, model_type = "FCNN")
-    cv_results_dict["onehot_FCNN"] = score_cv(start_dir, "onehot", 
+    cv_results_dict["onehot_FCNN"] = score_cv(start_dir, "onehot",
                     num_epochs=45, model_type = "FCNN")
-    cv_results_dict["unirep_FCNN"] = score_cv(start_dir, "unirep", 
+    cv_results_dict["unirep_FCNN"] = score_cv(start_dir, "unirep",
                     num_epochs=45, model_type = "FCNN")
-    cv_results_dict["protvec_FCNN"] = score_cv(start_dir, "protvec", 
+    cv_results_dict["protvec_FCNN"] = score_cv(start_dir, "protvec",
                     num_epochs=45, model_type = "FCNN")
     for data_type in ["adapted", "onehot", "protvec", "unirep"]:
-        cv_results_dict[data_type + "_BON"] = score_cv(start_dir, data_type, 
+        cv_results_dict[data_type + "_BON"] = score_cv(start_dir, data_type,
                     num_epochs=45, model_type = "BON")
-    cv_results_dict["adapted_RF"] = score_cv(start_dir, "adapted", 
+    cv_results_dict["adapted_RF"] = score_cv(start_dir, "adapted",
                     num_epochs=0, model_type = "RF")
-    cv_results_dict["onehot_RF"] = score_cv(start_dir, "onehot", 
+    cv_results_dict["onehot_RF"] = score_cv(start_dir, "onehot",
                     num_epochs=0, model_type = "RF")
     os.chdir(start_dir)
     os.chdir("results_and_resources")

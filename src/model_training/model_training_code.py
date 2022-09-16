@@ -14,6 +14,7 @@ from sklearn.ensemble import RandomForestClassifier
 from ..model_code.traditional_nn_classification import fcnn_classifier as FCNN
 from ..model_code.variational_Bayes_ordinal_reg import bayes_ordinal_nn as BON
 
+#TODO: Move full_wt_seq and aas to a constants file.
 full_wt_seq = ('EVQLVESGGGLVQPGGSLRLSCAASGFTFSD--SWIHWVRQAPGKGLEWVAWISP--'
                 'YGGSTYYADSVKGRFTISADTSKNTAYLQMNSLRAEDTAVYYCARRHWPGGF----------DYWGQGTLVTVSS')
 
@@ -23,8 +24,8 @@ aas = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P',
 
 
 
-#This function scores the wild-type sequence to see how it compares.
 def get_wt_score(start_dir):
+    """This function scores the wild-type sequence to see how it compares."""
     autoencoder = load_model(start_dir, "TaskAdapted_Autoencoder.ptc",
             model_type="adapted")
     varbayes_model = load_model(start_dir, "atezolizumab_varbayes_model.ptc",
@@ -41,10 +42,15 @@ def get_wt_score(start_dir):
     score, stdev = varbayes_model.extract_hidden_rep(x, use_MAP=True)
     print("WT MAP score: %s"%score.numpy().flatten()[0])
 
-#This function scores all sequences in both training and test sets,
-#then extracts the best 500 of those it finds (using MAP predictions
-#for reproducibility).
 def get_best_seqs(start_dir, num_to_keep = 500):
+    """This function scores all sequences in both training and test sets,
+    then extracts the best 500 of those it finds (using MAP predictions
+    for reproducibility).
+
+    Args:
+        start_dir (str): A path to the project dir.
+        num_to_keep (int): The number of sequences to keep.
+    """
     autoencoder = load_model(start_dir, "TaskAdapted_Autoencoder.ptc",
             model_type="adapted")
     varbayes_model = load_model(start_dir, "atezolizumab_varbayes_model.ptc",
@@ -88,11 +94,11 @@ def get_best_seqs(start_dir, num_to_keep = 500):
     textfile_copy.close()
     os.chdir(start_dir)
 
-#This function trains and saves the final model on the entire dataset.
-#The utilities functions will not let you overwrite the final saved model
-# -- you can manually delete it and then retrain it if you like.
-#Use a random seed for reproducibility.
 def train_final_model(start_dir, num_epochs):
+    """This function trains and saves the final model on the entire dataset.
+    The utilities functions will not let you overwrite the final saved model
+     -- you can manually delete it and then retrain it if you like.
+    Use a random seed for reproducibility."""
     trainx, trainy, testx, testy = load_data(start_dir, "adapted")
     xtrain = torch.cat([trainx, testx], dim=0)
     ytrain = torch.cat([trainy, testy], dim=0)
@@ -103,10 +109,21 @@ def train_final_model(start_dir, num_epochs):
             num_samples = 10)
     save_model(start_dir, "atezolizumab_varbayes_model.ptc", model) 
 
-#This function is used to generate class weights for the random forest and
-#fully connected classifiers, which are generated as baselines for comparison
-#with the variational network.
 def get_class_weights(y, as_dict = False):
+    """This function is used to generate class weights for the random forest and
+    fully connected classifiers, which are generated as baselines for comparison
+    with the variational network. TODO: Merge with dup fun in cv_scoring.
+
+    Args:
+        y (tensor): The y data. Should be an N x 4 array. The first two columns
+            are class labels encoded for ordinal regression. Last two are
+            class label as integer and datapoint weight.
+        as_dict (bool): If True, return the weights as a dictionary (for random
+            forest model).
+
+    Returns:
+        class_weights: Either a tensor (as_dict = False) or a dict.
+    """
     classes = y[:,-2].numpy()
     n_instances = np.asarray([classes.shape[0] / np.argwhere(classes==0).shape[0],
                                 classes.shape[0] / np.argwhere(classes==1).shape[0],
@@ -117,12 +134,19 @@ def get_class_weights(y, as_dict = False):
     return {0:n_instances[0], 1:n_instances[1], 2:n_instances[2]}
 
 
-#This function builds the specified model type on the specified encoding
-#type using the traiing set only if that model does not already exist
-#(if the model does already exist it is loaded). Next, it generates
-#predictions for the test set and scores them for accuracy then returns
-#the scores. Use a random seed for reproducibility.
 def eval_train_test(start_dir, data_type, num_epochs, model_type):
+    """This function builds the specified model type on the specified encoding
+    type using the traiing set only if that model does not already exist
+    (if the model does already exist it is loaded). Next, it generates
+    predictions for the test set and scores them for accuracy then returns
+    the scores. Use a random seed for reproducibility.
+
+    Args:
+        start_dir (str): The project directory filepath.
+        data_type (str): The type of encoding to use.
+        num_epochs (int): The number of epochs to train for.
+        model_type (str): The model type (fully connected, variational etc.)
+    """
     trainx, trainy, testx, testy = load_data(start_dir, data_type)
     if trainx is None:
         raise ValueError("The data type selected by model_training_code "
@@ -196,10 +220,15 @@ def eval_train_test(start_dir, data_type, num_epochs, model_type):
     return trainscore, testscore
 
 
-#Convenience function for training models on the training set, evaluating them on the test set,
-#building a final model, scoring the wild type and scoring the sequences in the original dataset,
-#then selecting the best.
 def train_evaluate_models(start_dir, action_to_take):
+    """Convenience function for training models on the training set, evaluating them on the test set,
+    building a final model, scoring the wild type and scoring the sequences in the original dataset,
+    then selecting the best.
+
+    Args:
+        start_dir (str): A filepath to the project directory.
+        action_to_take (str): One of 'traintest_eval', 'train_final_model'.
+    """
     os.chdir(os.path.join(start_dir, "encoded_data"))
     fnames = os.listdir()
     #This is a little...clunky, but because of the way the pipeline is set up, we have to encode the
@@ -251,5 +280,3 @@ def train_evaluate_models(start_dir, action_to_take):
         print("Top sequences retrieved, saved to 'results_and_resources/selected_sequences'.")
     else:
         raise ValueError("Invalid action specified when calling model_training_code.")
-
-

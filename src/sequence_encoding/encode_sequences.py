@@ -24,20 +24,34 @@ from ..model_code.task_adapted_autoencoder import TaskAdaptedAutoencoder as TAE
 from ..model_code.unadapted_autoencoder import UnadaptedAutoencoder as UAE
 from ..utilities.model_data_loader import gen_anarci_dict, load_data, load_model
 
+
+#TODO: Move aas and wildtype to a constants file.
 aas = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P',
        'Q', 'R', 'S', 'T', 'V', 'W', 'Y', '-']
-
-
 wildtype = ('EVQLVESGGGLVQPGGSLRLSCAASGFTFSDSWIHWVRQAPGKGLE'
             'WVAWISPYGGSTYYADSVKGRFTISADTSKNTAYLQMNSLRAEDTAVYYCARRHWPGGFDYWGQGTLVTVSS')
 
-#This key function converts RH01, RH02, RH03 to one-hot encoded Chothia numbered
-#sequences and train-test splits them. The y-tensors are shared among all data types
-#and contain 4 columns. The first two are one-hot encoded to indicate whether
-#sequence is > RH01 and whether sequence is >RH02. The third is a numerical category
-#indicator (0=RH01, 1=RH02, 2=RH03) and the fourth is the sequence weight, based on
-#the relative frequency in assigned category and other categories (see the paper).
 def one_hot_encode(start_dir, position_dict, unused_positions):
+    """This key function converts RH01, RH02, RH03 to one-hot encoded Chothia numbered
+    sequences and train-test splits them. The y-tensors are shared among all data types
+    and contain 4 columns. The first two are one-hot encoded to indicate whether
+    sequence is > RH01 and whether sequence is >RH02. The third is a numerical category
+    indicator (0=RH01, 1=RH02, 2=RH03) and the fourth is the sequence weight, based on
+    the relative frequency in assigned category and other categories (see the paper).
+
+    Args:
+        start_dir (str): A filepath to the project directory.
+        position_dict (dict): A dictionary mapping positions in the sequence to
+            Chothia numbering positions. Can be obtained from Utilities.
+        unusued_positions (list): A list of chothia positions that are not
+            used. Can be obtained from Utilities.
+
+    Returns:
+        trainx (tensor): A PyTorch tensor of train x data.
+        trainy (tensor): A PyTorch tensor of train y data.
+        testx (tensor): A PyTorch tensor of test x data.
+        testy (tensor): A PyTorch tensor of test y data.
+    """
     seqdict, total_seqs = dict(), 0
     unclear_category, unexpected_mutation = 0, 0
     os.chdir("encoded_data")
@@ -132,8 +146,19 @@ def protvec_encode_single_dataset(data_array, output_name, kmer_dict):
     kmer_encodings = torch.from_numpy(np.stack(kmer_encodings)).float()
     torch.save(kmer_encodings, output_name)
 
-#Runs the specified autoencoder on the training and test data.
+
 def run_autoencoder(start_dir, trainx, testx, model, model_type):
+    """Runs the specified autoencoder on the training and test data.
+
+    Args:
+        start_dir (str): A filepath to the project directory.
+        trainx (tensor): A PyTorch one-hot encoded input tensor.
+        testx (tensor): A PyTorch one-hot encoded input tensor.
+        model: A model object.
+        model_type (str): The type of model this data will be
+            used for. Used when saving the file to assign an appropriate
+            name.
+    """
     encoded_trainx = model.extract_hidden_rep(trainx)
     encoded_testx = model.extract_hidden_rep(testx)
     encoded_trainx = encoded_trainx[:,29:124,:]
@@ -144,8 +169,15 @@ def run_autoencoder(start_dir, trainx, testx, model, model_type):
     torch.save(encoded_testx, "%s_testx.pt"%model_type)
     os.chdir(start_dir)
 
-#Gets the distribution of amino acids in RH02 and RH03.
 def get_aa_distribution(position_dict, unused_positions):
+    """Gets the distribution of amino acids in RH02 and RH03.
+
+    Args:
+        position_dict (dict): A dictionary mapping input sequence positions
+            to Chothia numbering.
+        unused_positions (list): A list of the Chothia numbered positions
+            we do not use.
+    """
     mutation_array = np.ones((132,21))
     for filename in ["rh02_sequences.txt", "rh03_sequences.txt"]:
         with open(filename, 'r') as file_handle:
@@ -159,9 +191,12 @@ def get_aa_distribution(position_dict, unused_positions):
     np.save("rh02_rh03_prob_distribution", mutation_array)
 
 
-#A convenience function that makes all of the different encodings / representations
-#available via a single function call.
 def sequence_encoding_wrapper(start_dir):
+    """A convenience function that makes all of the different encodings / representations
+    available via a single function call. It loops over multiple encoding types
+    and generates them if they are not present. It does NOT generate Unirep / 
+    Fair-ESM since those are generated via a separate procedure (see other
+    files in this dir)."""
     os.chdir(os.path.join(start_dir, "encoded_data"))
     #This is a little clunky,but unfortunately now baked into the way the pipeline is set up.
     #Before proceeding, check to make sure the raw data has already been processed.

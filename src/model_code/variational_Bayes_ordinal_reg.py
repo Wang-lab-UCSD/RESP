@@ -13,20 +13,24 @@ from torch.autograd import Variable
 
 #######################################################################
 
-#The FC_Layer is a single fully connected layer in the network. Each layer stores:
-#mean_prior1        The mean of the prior distribution on the weights
-#sigma_prior1       The width of the prior distribution on the weights
-#input_dim          Expected input dimensionality
-#output_dim         Expected output dimensionality
-#pi2log, pilog      Useful constants
-#weight_means       The means of the distributions for the weights in the layer
-#weight_rhos        The rho parameters used to generate the standard deviation of
-#                   the distribution for each weight.
-#bias_means         The means of the distributions for the biases in the layer
-#bias_rhos          The rho parameters used to generate the standard deviation of
-#                   the distribution for each bias term.
 
 class FC_Layer(torch.nn.Module):
+    """The FC_Layer is a single fully connected layer in the network.
+
+    Attributes:
+        mean_prior1: The mean of the prior distribution on the weights
+        sigma_prior1: The width of the prior distribution on the weights
+        input_dim: Expected input dimensionality
+        output_dim: Expected output dimensionality
+        pi2log (float): A useful constant
+        pilog (float): A useful constant
+        weight_means: The means of the distributions for the weights in the layer
+        weight_rhos: The rho parameters used to generate the standard deviation of
+            the distribution for each weight.
+        bias_means: The means of the distributions for the biases in the layer
+        bias_rhos: The rho parameters used to generate the standard deviation of
+            the distribution for each bias term.
+    """
     def __init__(self, n_in, n_out, sigma_prior1 = 1.0):
         super(FC_Layer, self).__init__()
         torch.manual_seed(123)
@@ -46,29 +50,30 @@ class FC_Layer(torch.nn.Module):
         self.bias_rhos = torch.nn.Parameter(torch.zeros((n_out)).uniform_(-3,-2).float())
 
 
-    #The forward pass. Notice this layer does not apply any activation.
-    #
-    #If we are sampling, we use the means and rhos to generate a sample
-    #from the normal distribution they describe for each weight, and this gives us
-    #our weight matrix -- we use the reparameterization trick so that the gradient can
-    #be evaluated analytically. Additionally, we evaluate the KL divergence -- the other term
-    #in the ELBO -- for the variational distribution of the weights from p(w), aka the 
-    #complexity term.
-    #Note that while we do use a diagonal Gaussian variational posterior as in the
-    #original paper, for p(w) we use a Cauchy distribution -- this is a little different from
-    #using a scale mixture of Gaussians as described in the original paper; it implies
-    #that while we expect the distribution of weights to be symmetric and for most weights
-    #to be close to zero, we are not surprised by a small population of much larger
-    #(absolute) values. It is hard to choose an informative prior for the weight distribution
-    #of a deep learning model and can be argued whether this or a scale mixture of Gaussians
-    #(as in the original paper) is a better choice. Based on evaluation on other datasets
-    #(not shown) we have found they offer similar performance.
-    #
-    #If not sampling (MAP mode), the KL divergence cannot be evaluated; rather than drawing
-    #samples we just use the mean of the weight & bias distributions for the forward pass.
-    #This is used only for predictions; obviously if we used this for training we would
-    #be reverting to a simple FCNN.
     def forward(self, x, sample=True, random_seed = None):
+        """The forward pass. Notice this layer does not apply any activation.
+
+        If we are sampling, we use the means and rhos to generate a sample
+        from the normal distribution they describe for each weight, and this gives us
+        our weight matrix -- we use the reparameterization trick so that the gradient can
+        be evaluated analytically. Additionally, we evaluate the KL divergence -- the other term
+        in the ELBO -- for the variational distribution of the weights from p(w), aka the 
+        complexity term.
+        Note that while we do use a diagonal Gaussian variational posterior as in the
+        original paper, for p(w) we use a Cauchy distribution -- this is a little different from
+        using a scale mixture of Gaussians as described in the original paper; it implies
+        that while we expect the distribution of weights to be symmetric and for most weights
+        to be close to zero, we are not surprised by a small population of much larger
+        (absolute) values. It is hard to choose an informative prior for the weight distribution
+        of a deep learning model and can be argued whether this or a scale mixture of Gaussians
+        (as in the original paper) is a better choice. Based on evaluation on other datasets
+        (not shown) we have found they offer similar performance.
+
+        If not sampling (MAP mode), the KL divergence cannot be evaluated; rather than drawing
+        samples we just use the mean of the weight & bias distributions for the forward pass.
+        This is used only for predictions; obviously if we used this for training we would
+        be reverting to a simple FCNN.
+        """
         if random_seed is not None:
             torch.manual_seed(random_seed)
         if sample:
@@ -95,27 +100,28 @@ class FC_Layer(torch.nn.Module):
             output = torch.mm(x, self.weight_means) + self.bias_means
         return output, kl_loss
 
-    #Helper function for generating standard deviations from rho values.
     def softplus(self, x):
+        """Helper function for generating standard deviations from rho values."""
         return torch.log(1 + torch.exp(x))
 
-    #The log of a gaussian function -- all weights follow normal distributions
     def log_gaussian(self, mean, sigma, x):
+        """The log of a gaussian function -- all weights follow
+        normal distributions."""
         return -0.5*self.pi2log - torch.log(sigma) - 0.5*(x-mean)**2 / (sigma**2)
     
-    #The log of a univariate Cauchy distribution; used as a prior for the weight
-    #distribution.
     def log_cauchy(self, loc, scale, x):
+        """The log of a univariate Cauchy distribution; used as a prior for the
+        weight distribution."""
         return -self.pilog - torch.log(scale) - torch.log(1 + (x-loc)**2 / (scale**2))
 
-#This class is the output layer, which for ordinal regression is different in some
-#respects from the fully connected layers used in the rest of the model. The 'score"
-#output by the previous layer is added to fixed thresholds and returned. It was originally
-#intended to make the thresholds learned parameters but initial experiments suggested
-#use of fixed thresholds worked just as well (and reduced the number of parameters in the
-#model); consequently while there are attributes for learned threshold means and rhos,
-#these are not currently used.
 class Output_Layer(torch.nn.Module):
+    """This class is the output layer, which for ordinal regression is different in some
+    respects from the fully connected layers used in the rest of the model. The 'score"
+    output by the previous layer is added to fixed thresholds and returned. It was originally
+    intended to make the thresholds learned parameters but initial experiments suggested
+    use of fixed thresholds worked just as well (and reduced the number of parameters in the
+    model); consequently while there are attributes for learned threshold means and rhos,
+    these are not currently used."""
     def __init__(self):
         super(Output_Layer, self).__init__()
         torch.manual_seed(123)
@@ -126,9 +132,11 @@ class Output_Layer(torch.nn.Module):
         self.register_buffer("sigma_prior1", torch.tensor([0.1]))
         self.register_buffer("fixed_thresh", torch.tensor([-1.0, 1.0]))
 
-    #Forward pass. Currently the input is added to fixed thresholds; the remaining code
-    #which would treat the thresholds as learned parameters is not currently used.
     def forward(self, x, sample=True):
+        """Forward pass. Currently the input is added to fixed thresholds;
+        the remaining code which would treat the thresholds as
+        learned parameters is not currently used.
+        """
         return x + self.fixed_thresh, 0
         
         if sample:
@@ -146,17 +154,17 @@ class Output_Layer(torch.nn.Module):
         else:
             return x + self.thresh_means, 0
 
-    #Helper function for converting rho into standard deviation.
     def softplus(self, x):
+        """Helper function for converting rho into standard deviation."""
         return torch.log(1 + torch.exp(x))
 
-    #Helper function for the log of a gaussian distribution.
     def log_gaussian(self, mean, sigma, x):
+        """Helper function for the log of a gaussian distribution."""
         return -0.5*self.pi2log - torch.log(sigma) - 0.5*(x-mean)**2 / (sigma**2)
 
 
-#This class is the full model which is trained on the atezolizumab dataset.
 class bayes_ordinal_nn(torch.nn.Module):
+    """The full model which is trained on the atezolizumab dataset."""
     def __init__(self, sigma1_prior = 1.0, input_dim=264):
         super(bayes_ordinal_nn, self).__init__()
         torch.manual_seed(123)
@@ -167,23 +175,23 @@ class bayes_ordinal_nn(torch.nn.Module):
         self.register_buffer("train_mean", torch.zeros((1,input_dim))  )
         self.register_buffer("train_std", torch.zeros((1,input_dim))  )
 
-    #This function rescales input data for training or prediction if 
-    #the training set mean and std have been stored; if not, no change.
     def scale_data(self, x):
+        """This function rescales input data for training or prediction if 
+        the training set mean and std have been stored; if not, no change."""
         if torch.sum(self.train_mean) == 0:
             return x
         return (x - self.train_mean) / self.train_std
 
-    #Simultaneously calculates scaling values and scales the input data.
-    #Used on the training set only.
     def set_scaling_factors_and_scale(self, x):
+        """Simultaneously calculates scaling values and scales the input data.
+        Used on the training set only."""
         self.train_mean = torch.mean(x, dim=0).unsqueeze(0)
         self.train_std = torch.std(x, dim=0).unsqueeze(0)
         return self.scale_data(x)
 
-    #Calculates the weight to apply to labels from each class given the class
-    #imbalance.
     def get_class_weights(self, y):
+        """Calculates the weight to apply to labels from each class given the class
+        imbalance."""
         class_weights = np.zeros((y.size()[0]))
         classes = y[:,-2].numpy()
         n_instances = np.asarray([classes.shape[0] / np.argwhere(classes==0).shape[0],
@@ -195,13 +203,29 @@ class bayes_ordinal_nn(torch.nn.Module):
         class_weights[np.argwhere(classes==2).flatten()]=n_instances[2]
         return torch.from_numpy(class_weights).float()
 
-    #The forward pass. Note that activation is applied here (rather than inside
-    #the FC layer). If we are getting the score only, we can skip the output
-    #layer, which merely adds the score to the predefined thresholds to get
-    #class label predictions. Since the score is only required post-training,
-    #if the score is sought, the complexity term (kl_loss) is not needed and
-    #is not returned.
     def forward(self, x, get_score = False, sample=True, random_seed = None):
+        """The forward pass. Note that activation is applied here
+        (rather than inside the FC layer). If we are getting the score
+        only, we can skip the output layer, which merely adds the score
+        to the predefined thresholds to get class label predictions. Since
+        the score is only required post-training, if the score is sought,
+        the complexity term (kl_loss) is not needed and is not returned.
+
+        Args:
+            x (tensor): The input data.
+            get_score (bool): If True, get the score and do not bother
+                with class label predictions.
+            sample (bool): If True, generate multiple weight samples.
+            random_seed (int): The seed for the random number generator
+                to ensure reproducibility.
+
+        Returns:
+            If not get_loss:
+            probs (tensor): The class probabilities for each datapoint.
+            net_kl_loss: The KL divergence loss.
+            Otherwise:
+            x (tensor): The scores (the latent score for ordinal regression).
+        """
         x, kl_loss = self.n1(x, sample, random_seed)
         x = F.elu(x)
         x, kl_loss2 = self.n2(x, sample, random_seed)
@@ -213,11 +237,23 @@ class bayes_ordinal_nn(torch.nn.Module):
         net_kl_loss = kl_loss + kl_loss2 + kl_loss3
         return torch.sigmoid(output), net_kl_loss
 
-    #Custom loss function. We calculate the binary cross-entropy loss for predictions
-    #and add in the complexity term. If weights are supplied, the loss values are
-    #weighted based on the weight for that datapoint and for that class (the class
-    #weights compensate for class imbalance).
     def negloglik(self, ypred, ytrue, kl_loss, weights=None, class_weight_set = None):
+        """Custom loss function. We calculate the binary cross-entropy loss for
+        predictions and add in the complexity term. If weights are supplied,
+        the loss values are weighted based on the weight for that datapoint and
+        for that class (the class weights compensate for class imbalance).
+
+        Args:
+            ypred (tensor): The predicted classes.
+            ytrue (tensor): The actual classes.
+            kl_loss (tensor): The KL_divergence loss.
+            weights (tensor): If not None, datapoint weights.
+            class_weight_set (tensor): If not None, class weights. Must be supplied
+                if weights is supplied.
+
+        Returns:
+            loss: The resulting loss values.
+        """
         lossterm1 = -torch.log(torch.clamp(ypred, min=1*10**-10))*ytrue
         lossterm2 = -torch.log(torch.clamp(1-ypred, min=1*10**-10))*(1-ytrue)
         loss = torch.sum(lossterm1 + lossterm2, dim=1)
@@ -228,17 +264,47 @@ class bayes_ordinal_nn(torch.nn.Module):
             kl_loss = kl_loss * torch.sum(class_weight_set) / ypred.size()[0]
         return (torch.sum(loss) + kl_loss) / ypred.shape[0]
 
-    #This function trains the model represented by the class instance.
-    #If track_loss, all loss values are returned. Adam optimization with
-    #a low learning rate is used. Note that -- because of the way the data
-    #is encoded -- the datapoint weights are also stored in the y-tensor (in
-    #the last column), while the first two columns are one-hot indicators
-    #for > rh01, >rh02. Note that this is similar in many respects to typical
-    #NN training, but slower because of the need to draw multiple samples
-    #for the weights on each minibatch.
     def trainmod(self, x, y, epochs=40, minibatch=200, track_loss = True,
                     lr=0.0025, use_weights = True, num_samples = 5,
-                    scale_data = False, random_seed = None):
+                    scale_data = False, random_seed = 123):
+        """This function trains the model represented by the class instance.
+        If track_loss, all loss values are returned. Adam optimization with
+        a low learning rate is used. Note that -- because of the way the data
+        is encoded -- the datapoint weights are also stored in the y-tensor (in
+        the last column), while the first two columns are one-hot indicators
+        for > rh01, >rh02. Note that this is similar in many respects to typical
+        NN training, but slower because of the need to draw multiple samples
+        for the weights on each minibatch. Also note that currently
+        we load all of the data into memory when training because our
+        datasets are comparatively small and this is faster. If revising this
+        for a larger dataset we should switch to loading minibatches from disk
+        obviously.
+
+        Args:
+            x (tensor): The input sequence data encoded by the autoencoder
+                (or other encoding scheme).
+            y (tensor): The class labels. This is in an N x 4 tensor. The first
+                two columns are class labels set up for ordinal regression.
+                The last two are the class label in integer format and the
+                datapoint weight.
+            epochs (int): The number of training epochs.
+            minibatch (int): The minibatch size.
+            track_loss (bool): If True, track loss values during training and
+                return them as a list.
+            lr (float): The learning rate for Adam.
+            use_weights (bool): If True, use datapoint weighting. Defaults to True.
+            num_samples (int): The number of weight samples to draw on each
+                minibatch pass. A larger number will speed up convergence for
+                training but make it more expensive. Defaults to 5.
+            scale_data (bool): If True, store the dataset mean and variance
+                and use this to scale both the training data and any future
+                test data. Defaults to False.
+            random_seed: If not None, should be an integer seed for the random
+                number generator.
+
+        Returns:
+            losses (list): A list of loss values.
+        """
         num_batches = int(y.size()[0]/minibatch)
         if scale_data == True:
             x = self.set_scaling_factors_and_scale(x)
@@ -288,14 +354,31 @@ class bayes_ordinal_nn(torch.nn.Module):
             return losses
 
 
-    #This function generates the ordinal regression "score" (aka the hidden
-    #rep) for each input sequence, either in MAP mode (fully reproducible)
-    #or using a specified number of samples (stochastic). Used for scoring
-    #sequences to prioritize for experimental evaluation. MAP mode should
-    #be used for simulated annealing, where reproducible values for scores
-    #are desired. Otherwise, use_MAP can be set to False.
     def extract_hidden_rep(self, x, num_samples = 5, use_MAP=False,
             random_seed = None):
+        """This function generates the ordinal regression "score" (aka the hidden
+        rep) for each input sequence, either in MAP mode (fully reproducible)
+        or using a specified number of samples (stochastic). Used for scoring
+        sequences to prioritize for experimental evaluation. MAP mode should
+        be used for simulated annealing, where reproducible values for scores
+        are desired. Otherwise, use_MAP can be set to False.
+
+        Args:
+            x (tensor): The encoded input data, a 2d tensor.
+            num_samples (int): The number of weight samples to draw if NOT
+                in MAP mode.
+            use_MAP (bool): If True, we just generate the MAP prediction, which
+                is fully reproducible, for each datapoint. THis is preferred if
+                we just want to score a sequence. Otherwise, we use sampling
+                to estimate our level of confidence around each score that is
+                generated.
+            random_seed (int): Set if reproducible sampling is desired.
+
+        Returns:
+            scorelist (tensor): The predicted scores.
+            std: If use_MAP, 0 is returned. Otherwise, the standard deviation
+                of the predicted score for each datapoint is returned instead.
+        """
         with torch.no_grad():
             self.cpu()
             self.eval()
@@ -313,23 +396,31 @@ class bayes_ordinal_nn(torch.nn.Module):
             return self.forward(scaled_x, get_score=True, sample=False), 0
 
     
-    #This function makes a MAP prediction without performing any sampling. Unlike
-    #a sampling based prediction, this point value prediction is fully reproducible
-    #and should therefore be used for generating predictions in applications where
-    #reproducibility is desired.
-    #If (approximate) quantitation of uncertainty is desired,
-    #by contrast, predict or categorize should be used instead.
-    #The probabilities for class assignments are returned.
     def map_predict(self, x):
+        """This function makes a MAP prediction for class label without performing any sampling. Unlike
+        a sampling based prediction, this point value prediction is fully reproducible
+        and should therefore be used for generating predictions in applications where
+        reproducibility is desired.
+        If (approximate) quantitation of uncertainty is desired,
+        by contrast, predict or categorize should be used instead.
+        The probabilities for class assignments are returned.
+        """
         with torch.no_grad():
             self.eval()
             self.cpu()
             scaled_x = self.scale_data(x)
             return self.forward(scaled_x, sample=False)[0]
     
-    #This function is a simple wrapper on map_predict that converts
-    #its output to assigned categories for evaluating accuracy.
     def map_categorize(self, x):
+        """This function is a simple wrapper on map_predict that converts
+        its output to assigned categories for evaluating accuracy.
+
+        Args:
+            x (tensor): The input data.
+
+        Returns:
+            categories (np.ndarray): The category predictions.
+        """
         scores = self.extract_hidden_rep(x, use_MAP=True)[0].flatten()
         categories = torch.zeros((x.size()[0]))
         categories[scores > self.output_layer.fixed_thresh[0]] = 1
@@ -337,10 +428,21 @@ class bayes_ordinal_nn(torch.nn.Module):
         return categories.numpy()
         
 
-    #This function generates sampled predictions (no MAP mode) and
-    #assigns the input datapoints to categories. The predicted categories
-    #and the standard deviation of the scores are returned.
     def categorize(self, x, num_samples=25, random_seed = None):
+        """This function generates sampled predictions (no MAP mode) and
+        assigns the input datapoints to categories. The predicted categories
+        and the standard deviation of the scores are returned.
+
+        Args:
+            x (tensor): The input data.
+            num_samples (int): The number of weight samples to draw. More
+                samples is slower but increases the accuracy of the estimate.
+            random_seed (int): A seed for reproducibility.
+
+        Returns:
+            std (np.ndarray): The standard deviation of the assigned scores.
+            categories (np.ndarray): The predicted categories.
+        """
         with torch.no_grad():
             self.eval()
             self.cpu()
@@ -358,10 +460,23 @@ class bayes_ordinal_nn(torch.nn.Module):
             categories[scores>self.output_layer.fixed_thresh[1]] = 2
             return np.std(scores), categories
 
-    #This function returns the probabilities of class assignment for each
-    #datapoint using sampling (not MAP) and the standard deviation of the scores
-    #_for each datapoint_.
     def predict(self, x, num_samples=5, large_testset=False, random_seed=None):
+        """This function returns the probabilities of class assignment for each
+        datapoint using sampling (not MAP) and the standard deviation of the scores
+        _for each datapoint_.
+
+        Args:
+            x (tensor): The input data.
+            num_samples (int): The number of weight samples to draw. Larger numbers
+                improve accuracy and decrease speed.
+            large_testset (bool): If True, loop over the dataset in chunks to
+                minimize memory consumption.
+            random_seed (int): A seed for reproducibility.
+
+        Returns:
+            classes (tensor): Class assignments.
+            std_scores (tensor): The standard deviation of the score _for each datapoint._
+        """
         with torch.no_grad():
             self.eval()
             self.cpu()
@@ -380,5 +495,3 @@ class bayes_ordinal_nn(torch.nn.Module):
             mean_scores, std_scores = torch.mean(scores, dim=-1), torch.std(scores, dim=-1)
             probs, _ = self.output_layer(mean_scores.unsqueeze(-1))
             return torch.sigmoid(probs), std_scores
-
-

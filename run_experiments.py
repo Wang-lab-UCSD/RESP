@@ -57,16 +57,17 @@ def gen_arg_parser():
             "and store the final selected sequences.")
     return parser
 
-#This is the entry point for all of the steps in the pipeline;
-#it uses argparse to parse command line arguments, then calls
-#the relevant routines from specific subdirectories in src as
-#appropriate. The easiest way to reproduce the experiments
-#described in the paper is to use
-#the command line arguments specified here. You can of course
-#extract specific chunks of the pipeline code from src as 
-#desired, but if so you will have to reconfigure them to work
-#with your alternative pipeline.
 def main():
+    """This is the entry point for all of the steps in the pipeline;
+    it uses argparse to parse command line arguments, then calls
+    the relevant routines from specific subdirectories in src as
+    appropriate. The easiest way to reproduce the experiments
+    described in the paper is to use
+    the command line arguments specified here. You can of course
+    extract specific chunks of the pipeline code from src as 
+    desired, but if so you will have to reconfigure them to work
+    with your alternative pipeline.
+    """
     #Many of the actions taken by routines in the pipeline involve
     #directories and files that have specific locations relative
     #to the start directory.

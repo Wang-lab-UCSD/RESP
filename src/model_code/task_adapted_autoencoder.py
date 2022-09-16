@@ -42,6 +42,7 @@ class TaskAdaptedAutoencoder(torch.nn.Module):
 
     #Forward pass. Uses "gated" activation (see Dauphin et al, 2016)
     def forward(self, x, decode = True, training=False):
+        """Forward pass. Uses 'gated' activation (see Dauphin et al, 2016)."""
         #encode
         x2 = x.transpose(-1,-2)
         x2 = self.expander(x2)
@@ -61,12 +62,22 @@ class TaskAdaptedAutoencoder(torch.nn.Module):
         return aas, pred_cat
 
 
-    #Custom loss function. Incorporates 1) the cross entropy loss for
-    #the reconstruction and 2) the binary cross entropy loss for the 
-    #antibody vs mutant prediction. (2) is weighted relative to (1)
-    #since reconstruction applies across the whole sequence and would
-    #otherwise therefore predominate.
     def nll(self, aas_pred, cat_pred, x_mini, y_mini):
+        """Custom loss function. Incorporates (1) the cross entropy loss
+        for the reconstruction PLUS (2) the binary cross entropy loss for
+        the antibody vs mutant prediction. (2) is weighted relative to
+        (1) since reconstruction applies across the whole sequence and
+        would otherwise therefore predominate.
+
+        Args:
+            aas_pred (tensor): The predicted aas for the reconstruction.
+            cat_pred (tensor): The binary category predictions.
+            x_mini (tensor): The input that is reconstructed.
+            y_mini (tensor): The actual categories.
+
+        Returns:
+            loss (tensor): The loss.
+        """
         lossterm1 = -torch.log(aas_pred)*x_mini
         loss = torch.mean(torch.sum(torch.sum(lossterm1, dim=2), dim=1))
         lossterm2 = torch.mean(LOSS_BALANCING_FACTOR * 
@@ -74,13 +85,21 @@ class TaskAdaptedAutoencoder(torch.nn.Module):
         return lossterm2 + loss
 
 
-    #Trains the model by looping over and loading all pre-built minibatch files
-    #in a specified target directory. This is a lot faster than one-hot encoding
-    #the data on the fly, and more convenient than converting back and forth from
-    #sparse tensors for this particular case -- the price is a large disk space
-    #footprint. Returns a list of the loss fn stored on every 10 iterations.
     def train_model(self, epochs=5, minibatch=400, track_loss = True,
                 traindir = 'position_anarci_pts', lr=0.005):
+        """Trains the model by looping over all pre-built minibatch files in
+        a specified target directory.
+
+        Args:
+            epochs (int): The number of passes over the training set.
+            minibatch (int): The minibatch size.
+            track_loss (bool): If True, return a list of loss values.
+            traindir (str): The filepath to the target directory.
+            lr (float): The learning rate for Adam.
+
+        Returns:
+            losses (list): The list of loss values (only if track_loss is True).
+        """
         start_dir = os.getcwd()
         os.chdir(traindir)
         file_list = [filename.split(".xmix")[0] for filename in os.listdir() if 
@@ -129,10 +148,16 @@ class TaskAdaptedAutoencoder(torch.nn.Module):
         os.chdir(start_dir)
         return losses
 
-    #Encodes the input sequences (aka "generate hidden rep"). This function
-    #is used to encode the raw one-hot sequence data for the atezolizumab 
-    #dataset.
     def extract_hidden_rep(self, x, use_cpu=False):
+        """Generate the encoding for the input sequences.
+
+        Args:
+            x (tensor): A PyTorch tensor with one-hot encoded input.
+            use_cpu (bool): If True, use CPU rather than GPU.
+
+        Returns:
+            replist (tensor): The encoded input.
+        """
         with torch.no_grad():
             self.eval()
             if use_cpu == True:
@@ -142,10 +167,20 @@ class TaskAdaptedAutoencoder(torch.nn.Module):
                 x = x.cuda()
             return self.forward(x, decode=False).cpu()
 
-    #Generates a reconstruction for the input and a prediction
-    #of antibody or mutant for each input sequence. Used to
-    #evaluate performance of the autoencoder.
     def predict(self, x, use_cpu = False):
+        """Reconstructs the input and predicts the category to which
+        each sequence belongs. This is used to assess performance
+        of the autoencoder.
+
+        Args:
+            x (tensor): A PyTorch tensor with one-hot encoded input.
+            use_cpu (bool): If True, use CPU rather than GPU.
+
+        Returns:
+            replist (tensor): The reconstructed input.
+            cat_pred (tensor): The binary category predictions for each
+                input sequence.
+        """
         with torch.no_grad():
             self.eval()
             if use_cpu == True:
@@ -156,8 +191,9 @@ class TaskAdaptedAutoencoder(torch.nn.Module):
             aas, cat_pred = self.forward(x)
             return aas.cpu().numpy(), cat_pred.cpu().numpy()
 
-    #Helper function that evaluates the reconstruction accuracy of the autoencoder.
     def reconstruct_accuracy(self, x, use_cpu = False):
+        """A helper function to evaluate the reconstruction accuracy of the
+        autoencoder for supplied input."""
         reps, _ = self.predict(x, use_cpu)
         if use_cpu == True:
             x.cpu()
@@ -169,8 +205,7 @@ class TaskAdaptedAutoencoder(torch.nn.Module):
             num_preds += gt_aas.shape[1]
         return 1 - mismatches / num_preds
 
-    #Helper function that evaluates the antibody vs mutant predictive accuracy of
-    #the model, using the given binary vector y as class labels.
     def cat_accuracy(self, x, y, use_cpu = False):
+        """A helper function to evaluate antibody vs mutant predictive accuracy."""
         _, cat_preds = self.predict(x, use_cpu)
         return 1 - np.sum(np.abs(y.numpy() - cat_preds)) / y.shape[0]

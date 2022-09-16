@@ -1,13 +1,14 @@
-#In contrast to the other encodings, the Unirep and fair-esm
-#procedures require fasta files as input and do not use Chothia
-#numbering. This function converts the processed raw data to
-#fasta files that can be used by fair-esm and by TAPE (TAPE
-#generates the Unirep encoding).
+"""In contrast to the other encodings, the Unirep and fair-esm
+procedures require fasta files as input and do not use Chothia
+numbering. This function converts the processed raw data to
+fasta files that can be used by fair-esm and by TAPE (TAPE
+generates the Unirep encoding)."""
 
 
 import os, numpy as np, Bio, torch
 from Bio.Seq import Seq
 
+#TODO: Move aas and wildtype to a constants file.
 
 aas = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P',
        'Q', 'R', 'S', 'T', 'V', 'W', 'Y', '-']
@@ -16,14 +17,15 @@ aas = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P',
 wildtype = ('EVQLVESGGGLVQPGGSLRLSCAASGFTFSDSWIHWVRQAPGKGLE'
             'WVAWISPYGGSTYYADSVKGRFTISADTSKNTAYLQMNSLRAEDTAVYYCARRHWPGGFDYWGQGTLVTVSS')
 
-#First we assign classes and weights (same process as for all other
-#encodings) which contain the labels, and we write the raw
-#aa sequences to fasta files with a specific format required
-#by TAPE and by fair-esm. These FASTA files will then be converted to 
-#npz files using subprocess calls to TAPE, and those in turn
-#are converted to PyTorch tensors. the fair-esm procedure,
-#by contrast, converts directly to pytorch tensors.
 def convert_to_fasta(start_dir):
+    """First we assign classes and weights (same process as for all other
+    encodings) which contain the labels, and we write the raw
+    aa sequences to fasta files with a specific format required
+    by TAPE and by fair-esm. These FASTA files will then be converted to
+    npz files using subprocess calls to TAPE, and those in turn
+    are converted to PyTorch tensors. the fair-esm procedure,
+    by contrast, converts directly to pytorch tensors.
+    """
     os.chdir(os.path.join(start_dir, "encoded_data"))
     if "fair_unirep_train.faa" in os.listdir() and "fair_unirep_test.faa" in os.listdir():
         print("Fasta files already generated.")
@@ -83,12 +85,12 @@ def convert_to_fasta(start_dir):
 
     with open("fair_unirep_train.faa", "w+") as out_handle:
         for i, seq in enumerate(trainx):
-            header_arr = '_'.join([str(i)] + [str(z) for z 
+            header_arr = '_'.join([str(i)] + [str(z) for z
                 in trainy[i,:].tolist()])
             out_handle.write(">%s\n%s\n"%(header_arr, seq))
     with open("fair_unirep_test.faa", "w+") as out_handle:
         for i, seq in enumerate(testx):
-            header_arr = '_'.join([str(i)] + [str(z) for z 
+            header_arr = '_'.join([str(i)] + [str(z) for z
                 in testy[i,:].tolist()])
             out_handle.write(">%s\n%s\n"%(header_arr, seq))
     os.chdir(start_dir)

@@ -13,6 +13,7 @@ from ..model_code.variational_Bayes_ordinal_reg import bayes_ordinal_nn as BON
 from ..model_code.task_adapted_autoencoder import TaskAdaptedAutoencoder as TAE
 from ..model_code.unadapted_autoencoder import UnadaptedAutoencoder as UAE
 
+#A list of numbered positions for Chothia antibody sequence numbering.
 chothia_list = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11',
             '12', '13', '14', '15', '16', '17', '18', '19', '20', '21',
             '22', '23', '24', '25', '26', '27', '28', '29', '30', '31',
@@ -22,15 +23,25 @@ chothia_list = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11',
             '58', '59', '60', '61', '62', '63', '64', '65', '66', '67', '68',
             '69', '70', '71', '72', '73', '74', '75', '76', '77', '78', '79',
             '80', '81', '82', '82A', '82B', '82C', '83', '84', '85', '86',
-            '87', '88', '89', '90', '91', '92', '93', '94', '95', '96', 
+            '87', '88', '89', '90', '91', '92', '93', '94', '95', '96',
             '97', '98', '99', '100', '100A', '100B', '100C', '100D', '100E',
             '100F', '100G', '100H', '100I', '100J', '100K', '101', '102',
             '103', '104', '105', '106', '107', '108', '109', '110', '111',
             '112', '113']
 
-#This function generates dictionaries used to map input sequences to Chothia
-#numbering, so that blanks can be inserted in appropriate places.
 def gen_anarci_dict(start_dir):
+    """This function generates dictionaries used to map input sequences to Chothia
+    numbering, so that blanks can be inserted in appropriate places.
+
+    Args:
+        start_dir (str): A filepath to the starting directory.
+
+    Returns:
+        position_dict (dict): A dictionary that maps each position in a
+            PDL1 sequence to the corresponding Chothia numbered position.
+        unused_positions (list): A list of the Chothia numbered positions
+            that are not used for PDL1.
+    """
     os.chdir(start_dir)
     os.chdir("results_and_resources")
     position_dict, positions_used = dict(), set()
@@ -51,12 +62,21 @@ def gen_anarci_dict(start_dir):
 
 
 
-#This function loads the appropriate model for the specified data type
-#if it is present in the results_and_resources/trained_models dir;
-#if not, it returns None, indicating the corresponding model needs
-#to be trained. The baseline random forest model is never saved but
-#is rather retrained as needed.
 def load_model(start_dir, model_filename, model_type):
+    """This function loads the appropriate model for the specified data type
+    if it is present in the results_and_resources/trained_models dir;
+    if not, it returns None, indicating the corresponding model needs
+    to be trained.
+
+    Args:
+        start_dir (str): A path to the starting directory.
+        model_filename (str): The name of the saved model to look for.
+        model_type (str): The type of model. Determines how the model
+            is loaded and set up.
+
+    Returns:
+        model: The model object.
+    """
     os.chdir(start_dir)
     os.chdir(os.path.join("results_and_resources", "trained_models"))
     model = None
@@ -71,7 +91,7 @@ def load_model(start_dir, model_filename, model_type):
             os.chdir(start_dir)
             return model
         
-        model_state_dict = torch.load(model_filename) 
+        model_state_dict = torch.load(model_filename)
         if model_type == "BON":
             input_dim = model_state_dict["n1.weight_means"].size()[0]
             model = BON(input_dim = input_dim)
@@ -92,10 +112,16 @@ def load_model(start_dir, model_filename, model_type):
     return model
 
 
-#This function saves the model to the results_and_resources/trained_models
-#location. If the model is already present an error message is printed but no
-#exception is raised since this is non-fatal.
 def save_model(start_dir, model_filename, model):
+    """This function saves the model to the results_and_resources/trained_models
+    location. If the model is already present an error message is printed but no
+    exception is raised since this is non-fatal.
+
+    Args:
+        start_dir (str): A path to the start directory.
+        model_filename (str): A name to save the model under.
+        model: The model object.
+    """
     os.chdir(start_dir)
     os.chdir(os.path.join("results_and_resources", "trained_models"))
     if model_filename in os.listdir():
@@ -114,10 +140,20 @@ def save_model(start_dir, model_filename, model):
     os.chdir(start_dir)
 
 
-#This function loads the training and test x and y data for a specified data type.
-#If that data has not been generated yet, it returns None for all.
-#Data files are returned as the list [trainset_x, trainset_y, testset_x, testset_y].
 def load_data(start_dir, data_type):
+    """This function loads the training and test x and y data for a specified data type.
+    If that data has not been generated yet, it returns None for all.
+    Data files are returned as the list [trainset_x, trainset_y,
+            testset_x, testset_y].
+
+    Args:
+        start_dir (str): The path to the starting directory.
+        data_type (str): The type of data to load ("unirep" or some other).
+
+    Returns:
+        data_files (list): A list of train_x, train_y, test_x and test_y
+            data, all as PyTorch tensors.
+    """
     os.chdir(start_dir)
     os.chdir("encoded_data")
     data_files = []
@@ -137,5 +173,3 @@ def load_data(start_dir, data_type):
 
     os.chdir(start_dir)
     return data_files
-
-

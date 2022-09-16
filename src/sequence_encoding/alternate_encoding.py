@@ -24,6 +24,8 @@ from ..model_code.task_adapted_autoencoder import TaskAdaptedAutoencoder as TAE
 from ..model_code.unadapted_autoencoder import UnadaptedAutoencoder as UAE
 from ..utilities.model_data_loader import gen_anarci_dict, load_data, load_model
 
+#TODO: Move aas and wildtype to a constants file.
+
 aas = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P',
        'Q', 'R', 'S', 'T', 'V', 'W', 'Y', '-']
 

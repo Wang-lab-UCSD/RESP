@@ -1,4 +1,4 @@
-'''Unsupervised autoencoder trained only to reconstruct the input. 
+'''Unsupervised autoencoder trained only to reconstruct the input.
 This is distinct from the "adapted" autoencoder trained both to
 reconstruct the input and make a prediction about it.'''
 
@@ -10,14 +10,15 @@ import torch.nn.functional as F
 
 #######################################################################
 
-#This class is used to fit an UnadaptedAutoencoder (our shorthand for
-#unsupervised autoencoder that only reconstructs the input. This
-#model is then used to encode the raw sequence data for the atezolizumab
-#dataset to compare the performance of a model built using encodings from a
-#non-task-adapted autoencoder as opposed to a task-adapted one.
 
 
 class UnadaptedAutoencoder(torch.nn.Module):
+    """This class is used to fit an UnadaptedAutoencoder (our shorthand for
+    unsupervised autoencoder that only reconstructs the input. This
+    model is then used to encode the raw sequence data for the atezolizumab
+    dataset to compare the performance of a model built using encodings from a
+    non-task-adapted autoencoder as opposed to a task-adapted one.
+    """
     def __init__(self, random_seed=123):
         super(UnadaptedAutoencoder, self).__init__()
         torch.manual_seed(random_seed)
@@ -34,8 +35,8 @@ class UnadaptedAutoencoder(torch.nn.Module):
         self.final_adjust = torch.nn.Linear(3,21)
 
 
-    #Forward pass. Uses "gated" activation (see Dauphin et al, 2016)
     def forward(self, x, decode = True, training=False):
+        """Forward pass. Uses 'gated' activation (see Dauphin et al, 2016)."""
         #encode
         x2 = x.transpose(-1,-2)
         x2 = self.expander(x2)
@@ -50,20 +51,36 @@ class UnadaptedAutoencoder(torch.nn.Module):
         aas = torch.softmax(aas, dim=-1)
         return aas
 
-    #Custom loss function. Incorporates 1) the cross entropy loss for
-    #the reconstruction. 
     def nll(self, aas_pred, x_mini):
+        """Custom loss function. Incorporates the cross entropy loss
+        for the reconstruction.
+
+        Args:
+            aas_pred (tensor): The predicted aas for the reconstruction.
+            x_mini (tensor): The input that is reconstructed.
+
+        Returns:
+            loss (tensor): The loss.
+        """
         lossterm1 = -torch.log(aas_pred)*x_mini
         return torch.mean(torch.sum(torch.sum(lossterm1, dim=2), dim=1))
 
 
-    #Trains the model by looping over and loading all pre-built minibatch files
-    #in a specified target directory. This is a lot faster than one-hot encoding
-    #the data on the fly, and more convenient than converting back and forth from
-    #sparse tensors for this particular case -- the price is a large disk space
-    #footprint. Returns a list of the loss fn stored on every 10 iterations.
     def train_model(self, epochs=5, minibatch=400, track_loss = True,
                 traindir = 'position_anarci_pts', lr=0.005):
+        """Trains the model by looping over all pre-built minibatch files in
+        a specified target directory.
+
+        Args:
+            epochs (int): The number of passes over the training set.
+            minibatch (int): The minibatch size.
+            track_loss (bool): If True, return a list of loss values.
+            traindir (str): The filepath to the target directory.
+            lr (float): The learning rate for Adam.
+
+        Returns:
+            losses (list): The list of loss values (only if track_loss is True).
+        """
         start_dir = os.getcwd()
         os.chdir(traindir)
         file_list = [filename.split(".xmix")[0] for filename in os.listdir() if 
@@ -108,10 +125,16 @@ class UnadaptedAutoencoder(torch.nn.Module):
         return losses
 
 
-    #Encodes the input sequences (aka "generate hidden rep"). This function
-    #is used to encode the raw one-hot sequence data for the atezolizumab 
-    #dataset.
     def extract_hidden_rep(self, x, use_cpu=False):
+        """Generate the encoding for the input sequences.
+
+        Args:
+            x (tensor): A PyTorch tensor with one-hot encoded input.
+            use_cpu (bool): If True, use CPU rather than GPU.
+
+        Returns:
+            replist (tensor): The encoded input.
+        """
         with torch.no_grad():
             self.eval()
             if use_cpu == True:
@@ -134,9 +157,17 @@ class UnadaptedAutoencoder(torch.nn.Module):
         return torch.cat(replist, dim=0).cpu()
 
 
-    #Generates a reconstruction for the input. Used to
-    #evaluate performance of the autoencoder.
     def predict(self, x, use_cpu = False):
+        """Reconstructs the input. This is used to assess performance
+        of the autoencoder.
+
+        Args:
+            x (tensor): A PyTorch tensor with one-hot encoded input.
+            use_cpu (bool): If True, use CPU rather than GPU.
+
+        Returns:
+            replist (tensor): The reconstructed input.
+        """
         with torch.no_grad():
             self.eval()
             if use_cpu == True:
@@ -160,8 +191,9 @@ class UnadaptedAutoencoder(torch.nn.Module):
         return torch.cat(replist, dim=0).cpu().numpy()
 
 
-    #Helper function that evaluates the reconstruction accuracy of the autoencoder.
     def reconstruct_accuracy(self, x, use_cpu = False):
+        """A helper function to evaluate the reconstruction accuracy of the
+        autoencoder for supplied input."""
         reps = self.predict(x, use_cpu)
         if use_cpu == True:
             x.cpu()
@@ -172,5 +204,3 @@ class UnadaptedAutoencoder(torch.nn.Module):
             mismatches += np.argwhere(gt_aas[i,:] != pred_aas[i,:]).shape[0]
             num_preds += gt_aas.shape[1]
         return 1 - mismatches / num_preds
-
-

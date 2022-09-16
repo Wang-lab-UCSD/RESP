@@ -15,6 +15,8 @@ evaluation.'''
 
 import torch, random, numpy as np, os, sys, matplotlib.pyplot as plt
 from ..utilities.model_data_loader import load_model
+
+#TODO: Move aas to constants file.
 aas = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P',
        'Q', 'R', 'S', 'T', 'V', 'W', 'Y', '-']
 
@@ -25,18 +27,45 @@ aas_no_blank = aas[:-1]
 #temperature reaches the predefined threshold.
 MAX_NUM_FAILURES = 11
 
-#This class contains attributes and methods needed to perform modified
-#simulated annealing. Inputs include the final trained model, the
-#autoencoder, the wild type sequence and the probability distribution
-#(derived from abundance of mutations at each position in the training
-#set). Note that it can be run in CDRONLY mode or not. Originally we had
-#discussed exploring sequences that had mutations in the CDRs only
-#but eventually decided against this; the class was set up to allow for
-#both (in case we decided to do that). Use a random seed for reproducibility.
 class MarkovChainDE():
+    """This class contains attributes and methods needed to perform modified
+    simulated annealing. Inputs include the final trained model, the
+    autoencoder, the wild type sequence and the probability distribution
+    (derived from abundance of mutations at each position in the training
+    set). Note that it can be run in CDRONLY mode or not. Originally we had
+    discussed exploring sequences that had mutations in the CDRs only
+    but eventually decided against this; the class was set up to allow for
+    both (in case we decided to do that). Use a random seed for reproducibility.
+
+    Attributes:
+        ordinal_mod: A variational Bayesian NN model object for scoring seqs.
+        autoencoder: An autoencoder model object for encoding seqs.
+        scores (list): The scores accumulated to date.
+        seqs (list): The sequences tested to date.
+        acceptance_rate (float): The fraction of proposals that were
+            accepted. Useful as a diagnostic.
+        full_wt (str): The full wild type sequence -- we will mutate this.
+        positions_for_mutation (list): The positions we will mutate.
+            These are hard-coded here. TODO: Transfer to a constants file.
+        prob_distro (np.ndarray): The probability of each amino acid at each
+            position. Determined based on the raw data and used when sampling
+            new amino acids for each position.
+        seed (int): The random number seed.
+    """
     def __init__(self, full_wt_seq, prob_distro,
             start_dir, cdronly = False, seed = 0):
-        self.ordinal_mod = load_model(start_dir, "atezolizumab_varbayes_model.ptc", 
+        """Class constructor.
+
+        Args:
+            full_wt_seq (str): The full wild type sequence.
+            prob_distro (np.ndarray): The probability of each amino
+                acid at each position.
+            start_dir (str): The project filepath.
+            cdronly (bool): If True, only mutate in CDRs. We thought
+                about using this approach but did not ultimately do so.
+            seed (int): Seed for reproducibility.
+        """
+        self.ordinal_mod = load_model(start_dir, "atezolizumab_varbayes_model.ptc",
                 "BON")
         self.autoencoder = load_model(start_dir, "TaskAdapted_Autoencoder.ptc",
                 "adapted")
@@ -51,19 +80,29 @@ class MarkovChainDE():
         self.prob_distro = prob_distro
         self.seed = seed
 
-    #Encodes a proposed mutant seq as one-hot then converts it using the
-    #autoencoder and extracts the relevant region.
     def encode_seq(self, seq):
+        """Encodes a proposed mutant seq as one-hot then converts it using the
+        autoencoder and extracts the relevant region."""
         encoder_arr = torch.zeros((1,132,21))
         for j, letter in enumerate(seq):
             encoder_arr[0,j,aas.index(letter)] = 1.0
         encoded_rep = self.autoencoder.extract_hidden_rep(encoder_arr.cuda()).cpu()
         return encoded_rep[:,29:124,:].flatten(1,-1)
 
-    #Scores a sequence -- either using MAP mode, which is reproducible,
-    #or using sampling, which is not (if the seed changed, the score
-    #would change slightly). Using MAP is preferable.
     def score_seq(self, seq, use_MAP=True, num_samples=100):
+        """Scores a sequence -- either using MAP mode, which is reproducible,
+        or using sampling, which is not (if the seed changed, the score
+        would change slightly). Using MAP is preferable.
+
+        Args:
+            seq (str): The sequence to score.
+            use_MAP (bool): If True, use MAP to score.
+            num_samples (int): The number of weight samples to draw.
+                Ignored if use_MAP is true.
+
+        Returns:
+            score (np.ndarray): The score for the sequence.
+        """
         encoded_seq = self.encode_seq(seq)
         if use_MAP == False:
             score, stdev = self.ordinal_mod.extract_hidden_rep(encoded_seq, num_samples=num_samples)
@@ -73,8 +112,8 @@ class MarkovChainDE():
             return score.flatten().numpy()[0]
 
 
-    #Simple helper function for plotting scores from a completed chain.
     def plot_scores(self):
+        """Simple helper function for plotting scores from a completed chain."""
         fig, ax = plt.subplots(1)
         ax.plot(self.scores, linewidth=2.0)
         ax.set_xlabel("Iterations")
@@ -82,8 +121,14 @@ class MarkovChainDE():
         ax.set_title("Scores for Markov chain directed evolution")
         return fig, ax
 
-    #This function runs a simulated annealing experiment as described above.
     def run_chain(self, max_iterations=3000, seed = 0):
+        """This function runs a simulated annealing experiment as described above.
+
+        Args:
+            max_iterations (int): The maximum number of iterations for
+                the chain.
+            seed (int): The random seed.
+        """
         num_accepted = 0
         self.seed = seed
         random.seed(self.seed)
@@ -120,16 +165,16 @@ class MarkovChainDE():
                 break
         self.acceptance_rate = num_accepted / max_iterations
 
-    #This function is available as an option to do
-    #additional processing on sequences
-    #selected by the simulated annealing process. Ideally we would like
-    #to use a sequence with a small number of mutations from the original.
-    #The polish function takes each mutant and tries to return the amino acid
-    #at as many mutated positions as possible to the aa present in the wild
-    #type at that position, while keeping the score within 90% of the
-    #score for the original selected mutant. We did not ultimately
-    #make use of this routine however for our analysis.
     def polish(self, orig_mutant):
+        """This function is available as an option to do
+        additional processing on sequences
+        selected by the simulated annealing process. Ideally we would like
+        to use a sequence with a small number of mutations from the original.
+        The polish function takes each mutant and tries to return the amino acid
+        at as many mutated positions as possible to the aa present in the wild
+        type at that position, while keeping the score within 90% of the
+        score for the original selected mutant. We did not ultimately
+        make use of this routine however for our analysis."""
         current_score = self.score_seq(orig_mutant, use_MAP=True)[0]
         score_thresh = np.max([0,0.9*current_score])
         revised_mutant = list(orig_mutant)

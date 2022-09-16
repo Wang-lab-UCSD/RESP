@@ -11,15 +11,23 @@ import torch.nn.functional as F
 
 #######################################################################
 
-#This class is used to fit a fully connected neural net to perform
-#three-class classification on the atezolizumab dataset; useful as
-#a baseline for comparison with other techniques. We use dropout
-#for regularization since this dramatically enhances performance on
-#this task.
 
 class fcnn_classifier(torch.nn.Module):
+    """This class is used to fit a fully connected neural net to perform
+    three-class classification on the atezolizumab dataset; useful as
+    a baseline for comparison with other techniques. We use dropout
+    for regularization since this dramatically enhances performance on
+    this task.
+
+    Attributes:
+        dropout (float): The amount of dropout to apply.
+        n1: The first linear layer.
+        n2: The second linear layer.
+        n3: The third linear layer.
+    """
     def __init__(self,dropout = 0.3, input_dim=285):
         super(fcnn_classifier, self).__init__()
+        #Keept this to ensure reproducibility.
         torch.manual_seed(123)
         self.dropout = dropout
         self.n1 = torch.nn.Linear(input_dim,30)
@@ -27,8 +35,8 @@ class fcnn_classifier(torch.nn.Module):
         self.n3 = torch.nn.Linear(30,3)
 
 
-    #Forward pass.
     def forward(self, x, training = True):
+        """The forward pass for the neural network."""
         x2 = F.elu(self.n1(x))
         if training == True:
             x2 = F.dropout(x2, p=self.dropout)
@@ -39,17 +47,35 @@ class fcnn_classifier(torch.nn.Module):
         return torch.softmax(x2, dim=-1)
 
 
-    #Trains a model on the input x and y arrays using Adam optimization
-    #with simple multi-class cross entropy loss.
     def trainmod(self, x, y, epochs=5, minibatch=250, track_loss = True,
                     lr=0.0025, use_weights = True, class_weights=None):
+        """Trains a model on the input x and y arrays using Adam optimization with
+        simple multi-class cross-entropy loss. Our datasets are small enough we
+        can load the full dataset into memory all at once, in general.
+
+        Args:
+            x (tensor): A PyTorch 2d tensor containing the flattened input.
+            y (tensor): A PyTorch tensor where the last 2 columns are the
+                class labels followed by the datapoint weights, and the remaining
+                columns are the data encoded for ordinal regression.
+            epochs (int): Number of epochs for training.
+            minibatch (int): Minibatch size.
+            track_loss (bool): Whether to track loss and return that information.
+            lr (float): The learning rate for Adam.
+            use_weights (bool): If True, use datapoint weighting. True by default.
+            class_weights: A PyTorch array containing the class weights.
+
+        Returns:
+            losses (list): A list of the losses IF track_loss is True, otherwise,
+                nothing is returned.
+        """
         self.train()
         self.cuda()
         
         loss_fn = torch.nn.NLLLoss(reduction='none', weight=class_weights.float().cuda())
         x.cuda()
         y.cuda()
-        optimizer = torch.optim.Adam(self.parameters(), lr=lr)    
+        optimizer = torch.optim.Adam(self.parameters(), lr=lr)
         losses = []
         for i in range(0, epochs):
             print("Epoch %s"%i)
@@ -74,11 +100,18 @@ class fcnn_classifier(torch.nn.Module):
         if track_loss == True:
             return losses
 
-        
-    #Use the predict function to make predictions with a trained model.
-    #Note that for classification, it returns both class probabilities AND
-    #predicted categories.
+
     def predict(self, x):
+        """Make predictions for a trained model.
+
+        Args:
+            x (tensor): A PyTorch tensor for which predictions are desired.
+
+        Returns:
+            probs (np.ndarray): A numpy array containing the probability of
+                each class assignment.
+            class_pred (np.ndarray): The predicted class assignment.
+        """
         with torch.no_grad():
             self.eval()
             self.cpu()
