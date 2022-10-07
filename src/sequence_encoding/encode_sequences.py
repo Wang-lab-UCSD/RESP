@@ -110,13 +110,13 @@ def one_hot_encode(start_dir, position_dict, unused_positions):
     testy = y[int(0.8*y.shape[0]):, :]
     return trainx, trainy, testx, testy
 
-#This function is a wrapper for protvec_encode_single_dataset and is
-#responsible for encoding the one-hot data using the protvec representation
-#(see Asgari et al for details). Basically, each kmer is assigned a numeric vector
-#and these are added to produce the final representation. While this is
-#significantly outperformed by simple one-hot encoding, surprisingly it outperform
-#what have been claimed to be more sophisticated "language" models, hence its inclusion.
 def encode_protvec(start_dir, trainx, testx):
+    """This function is a wrapper for protvec_encode_single_dataset and is
+    responsible for encoding the one-hot data using the protvec representation
+    (see Asgari et al for details). Basically, each kmer is assigned a numeric vector
+    and these are added to produce the final representation. While this is
+    significantly outperformed by simple one-hot encoding, surprisingly it outperform
+    what have been claimed to be more sophisticated "language" models, hence its inclusion."""
     os.chdir(start_dir)
     os.chdir(os.path.join("results_and_resources", "ProtVec"))
     kmer_dict = dict()
@@ -131,8 +131,8 @@ def encode_protvec(start_dir, trainx, testx):
     protvec_encode_single_dataset(testx, "protvec_testx.pt", kmer_dict)
     os.chdir(start_dir)
 
-#Encodes either the training set or test set using the protvec encoding.
 def protvec_encode_single_dataset(data_array, output_name, kmer_dict):
+    """Encodes either the training set or test set using the protvec encoding."""
     kmer_encodings = []
     for i in range(data_array.shape[0]):
         kmer_encoding = np.zeros((100))

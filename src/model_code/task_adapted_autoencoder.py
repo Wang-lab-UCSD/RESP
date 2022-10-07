@@ -208,4 +208,4 @@ class TaskAdaptedAutoencoder(torch.nn.Module):
     def cat_accuracy(self, x, y, use_cpu = False):
         """A helper function to evaluate antibody vs mutant predictive accuracy."""
         _, cat_preds = self.predict(x, use_cpu)
-        return 1 - np.sum(np.abs(y.numpy() - cat_preds)) / y.shape[0]
+        return 1 - np.sum(np.abs(y.numpy() - np.rint(cat_preds))) / y.shape[0]

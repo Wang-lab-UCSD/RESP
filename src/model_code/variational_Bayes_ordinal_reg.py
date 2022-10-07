@@ -122,15 +122,18 @@ class Output_Layer(torch.nn.Module):
     use of fixed thresholds worked just as well (and reduced the number of parameters in the
     model); consequently while there are attributes for learned threshold means and rhos,
     these are not currently used."""
-    def __init__(self):
+    def __init__(self, num_outputs = 2):
         super(Output_Layer, self).__init__()
         torch.manual_seed(123)
         self.register_buffer("pi2log", torch.log(torch.tensor([2.0*3.1415927410125732])) )
+        fixed_thresh = [-num_outputs + 1.0]
+        fixed_thresh += [fixed_thresh[0] + i * 2.0 for i in range(num_outputs - 1)]
+        self.register_buffer("fixed_thresh", torch.tensor(fixed_thresh))
+        #Not currently used
         self.thresh_means = torch.nn.Parameter(torch.Tensor([-1.0,1.0]))
         self.thresh_rhos = torch.nn.Parameter(torch.zeros((2)).uniform_(-3,-2).float())
         self.register_buffer("thresh_prior", torch.tensor([-1.0,1.0]))
         self.register_buffer("sigma_prior1", torch.tensor([0.1]))
-        self.register_buffer("fixed_thresh", torch.tensor([-1.0, 1.0]))
 
     def forward(self, x, sample=True):
         """Forward pass. Currently the input is added to fixed thresholds;
@@ -165,15 +168,18 @@ class Output_Layer(torch.nn.Module):
 
 class bayes_ordinal_nn(torch.nn.Module):
     """The full model which is trained on the atezolizumab dataset."""
-    def __init__(self, sigma1_prior = 1.0, input_dim=264):
+    def __init__(self, sigma1_prior = 1.0, input_dim=264, num_categories = 3):
         super(bayes_ordinal_nn, self).__init__()
         torch.manual_seed(123)
+        self.num_outputs = num_categories - 1
+
         self.n1 = FC_Layer(input_dim, 30, sigma1_prior)
         self.n2 = FC_Layer(30, 30, sigma1_prior)
         self.n3 = FC_Layer(30,1, sigma1_prior)
-        self.output_layer = Output_Layer()
+        self.output_layer = Output_Layer(self.num_outputs)
         self.register_buffer("train_mean", torch.zeros((1,input_dim))  )
         self.register_buffer("train_std", torch.zeros((1,input_dim))  )
+
 
     def scale_data(self, x):
         """This function rescales input data for training or prediction if 
@@ -194,13 +200,11 @@ class bayes_ordinal_nn(torch.nn.Module):
         imbalance."""
         class_weights = np.zeros((y.size()[0]))
         classes = y[:,-2].numpy()
-        n_instances = np.asarray([classes.shape[0] / np.argwhere(classes==0).shape[0],
-                                classes.shape[0] / np.argwhere(classes==1).shape[0],
-                                classes.shape[0] / np.argwhere(classes==2).shape[0]])
+        n_instances = np.asarray([classes.shape[0] / np.argwhere(classes==i).shape[0] for
+                        i in range(self.num_outputs + 1)])
         n_instances = n_instances / np.max(n_instances)
-        class_weights[np.argwhere(classes==0).flatten()]=n_instances[0]
-        class_weights[np.argwhere(classes==1).flatten()]=n_instances[1]
-        class_weights[np.argwhere(classes==2).flatten()]=n_instances[2]
+        for i in range(self.num_outputs + 1):
+            class_weights[np.argwhere(classes==i).flatten()]=n_instances[i]
         return torch.from_numpy(class_weights).float()
 
     def forward(self, x, get_score = False, sample=True, random_seed = None):
@@ -338,7 +342,7 @@ class bayes_ordinal_nn(torch.nn.Module):
                                 random_seed = seed)
                     y_pred = y_pred.clamp(min=1e-10)
                     if use_weights:
-                        loss += self.negloglik(y_pred, y_mini[:,:2], kl_loss/num_batches,
+                        loss += self.negloglik(y_pred, y_mini[:,:self.num_outputs], kl_loss/num_batches,
                                     y_mini[:,-1], class_weights_mini)
                     else:
                         loss += self.negloglik(y_pred, y_mini, kl_loss/num_batches)
@@ -423,8 +427,8 @@ class bayes_ordinal_nn(torch.nn.Module):
         """
         scores = self.extract_hidden_rep(x, use_MAP=True)[0].flatten()
         categories = torch.zeros((x.size()[0]))
-        categories[scores > self.output_layer.fixed_thresh[0]] = 1
-        categories[scores > self.output_layer.fixed_thresh[1]] = 2
+        for i in range(self.output_layer.fixed_thresh.shape[0]):
+            categories[scores > self.output_layer.fixed_thresh[i]] = i + 1
         return categories.numpy()
         
 
@@ -456,8 +460,8 @@ class bayes_ordinal_nn(torch.nn.Module):
                             random_seed = seed))
             scores = torch.mean(torch.cat(scores, dim=-1), dim=-1).numpy()
             categories = np.zeros((x.size()[0]))
-            categories[scores>self.output_layer.fixed_thresh[0]] = 1
-            categories[scores>self.output_layer.fixed_thresh[1]] = 2
+            for i in range(self.output_layer.fixed_thresh.shape[0]):
+                categories[scores > self.output_layer.fixed_thresh[i]] = i + 1
             return np.std(scores), categories
 
     def predict(self, x, num_samples=5, large_testset=False, random_seed=None):

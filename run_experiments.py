@@ -1,5 +1,12 @@
-import argparse, os, sys, subprocess, shutil
-from src.model_training.model_training_code import train_evaluate_models
+"""Provides a command line utility to run key experiments described in the paper."""
+import argparse
+import os
+import sys
+import subprocess
+import shutil
+
+from src.model_training.model_training_code import train_evaluate_models, train_evaluate_trastuzumab
+from src.model_training.model_training_code import plot_all_scores
 from src.raw_data_processing.process_raw_reads import process_all_raw_reads
 from src.sequence_encoding.encode_sequences import sequence_encoding_wrapper
 from src.sequence_encoding.alternate_encoding import alternate_encoding_wrapper
@@ -9,6 +16,7 @@ from src.simulated_annealing.run_markov_chains import analyze_annealing_results
 from src.sequence_encoding.seqs_to_fasta import convert_to_fasta
 from src.sequence_encoding.fair_esm_wrapper import fair_esm_wrapper
 from src.model_training.cv_scoring import run_all_5x_cvs
+from src.trastuzumab_exp.process_raw_seqs import encode_trastuzumab_seqs
 
 def gen_arg_parser():
     parser = argparse.ArgumentParser(description="Use this command line app "
@@ -55,6 +63,13 @@ def gen_arg_parser():
     parser.add_argument("--analyzeanneal", action="store_true", help=
             "Analyze the results of the simulated annealing experiment "
             "and store the final selected sequences.")
+    parser.add_argument("--plotscores", action="store_true", help=
+            "Plot the score distribution vs experimentally determined "
+            "binding category.")
+    parser.add_argument("--trastsetup", action="store_true", help=
+            "Set up the trastuzumab sequence data.")
+    parser.add_argument("--trasteval", action="store_true", help=
+            "Evaluate on train-test for the trastuzumab data.")
     return parser
 
 def main():
@@ -115,9 +130,14 @@ def main():
         run_annealing_chains(start_dir)
     if args.analyzeanneal:
         analyze_annealing_results(start_dir)
+    if args.plotscores:
+        plot_all_scores(start_dir)
     if args.runcvs:
         run_all_5x_cvs(start_dir)
-
+    if args.trastsetup:
+        encode_trastuzumab_seqs(start_dir)
+    if args.trasteval:
+        train_evaluate_trastuzumab(start_dir)
 
 if __name__ == "__main__":
     main()

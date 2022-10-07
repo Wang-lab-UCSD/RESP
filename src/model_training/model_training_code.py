@@ -5,7 +5,14 @@ top 500, scoring the wild-type.'''
 
 #Author: Jonathan Parkinson <jlparkinson1@gmail.com>
 
-import os, sys, numpy as np, torch, argparse, sys, pickle
+import os
+import sys
+import argparse
+import pickle
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+import torch
 from ..utilities.model_data_loader import load_model, save_model, load_data
 from torch.utils.data import random_split
 from sklearn.model_selection import KFold
@@ -42,7 +49,7 @@ def get_wt_score(start_dir):
     score, stdev = varbayes_model.extract_hidden_rep(x, use_MAP=True)
     print("WT MAP score: %s"%score.numpy().flatten()[0])
 
-def get_best_seqs(start_dir, num_to_keep = 500):
+def get_best_seqs(start_dir, num_to_keep = 4000):
     """This function scores all sequences in both training and test sets,
     then extracts the best 500 of those it finds (using MAP predictions
     for reproducibility).
@@ -93,6 +100,51 @@ def get_best_seqs(start_dir, num_to_keep = 500):
         textfile_copy.write(''.join(current_seq))
     textfile_copy.close()
     os.chdir(start_dir)
+
+
+def plot_all_scores(start_dir):
+    """This function scores all sequences in both training and test sets,
+    then plots the scores of those it finds (using MAP for reproducibility).
+
+    Args:
+        start_dir (str): A path to the project dir.
+        num_to_keep (int): The number of sequences to keep.
+    """
+    autoencoder = load_model(start_dir, "TaskAdapted_Autoencoder.ptc",
+            model_type="adapted")
+    varbayes_model = load_model(start_dir, "atezolizumab_varbayes_model.ptc",
+            model_type = "BON")
+    if autoencoder is None or varbayes_model is None:
+        raise ValueError("Autoencoder not yet trained / saved, or "
+            "final atezolizumab model not yet trained / saved.")
+    rawx1, rawy1, rawx2, rawy2 = load_data(start_dir, data_type="onehot")
+    if rawx1 is None:
+        raise ValueError("Encoded data has not yet been generated.")
+    y = torch.cat([rawy1, rawy2], dim=0).numpy()
+    x = torch.cat([rawx1, rawx2], dim=0)
+    label_key = {0:"RH01", 1:"RH02", 2:"RH03"}
+    labels = [label_key[category] for category in y[:,-2].tolist()]
+
+    x_encoded = autoencoder.extract_hidden_rep(x.cuda())
+    x_encoded = x_encoded[:,29:124,:].flatten(1,-1)
+    xscores, stdevs = varbayes_model.extract_hidden_rep(x_encoded, use_MAP=True)
+    xscores = xscores.numpy().flatten()
+    
+    os.chdir(start_dir)
+    os.chdir(os.path.join("results_and_resources", "selected_sequences"))
+    plt.style.use("bmh")
+    fig, ax = plt.subplots(1, figsize=(8,6))
+    sns.kdeplot(x = xscores, hue = labels, ax = ax)
+    ax.set_xlabel("Score assigned by variational\nBayesian ordinal regression")
+    ax.set_ylabel("PDF")
+    plt.title("Distribution of scores assigned by variational Bayesian\n"
+            "ordinal regression vs experimentally determined\n"
+            "binding category")
+    plt.savefig("Score_distribution.png")
+    plt.close()
+    os.chdir(start_dir)
+
+
 
 def train_final_model(start_dir, num_epochs):
     """This function trains and saves the final model on the entire dataset.
@@ -162,8 +214,7 @@ def eval_train_test(start_dir, data_type, num_epochs, model_type):
         testx = (testx - torch.mean(trainx, dim=0).unsqueeze(0)) / torch.std(trainx, dim=0).unsqueeze(0)
         trainx = (trainx - torch.mean(trainx, dim=0).unsqueeze(0)) / torch.std(trainx, dim=0).unsqueeze(0)
 
-    model = load_model(start_dir, "%s_trainset_only_%s_model.ptc"%(data_type, model_type),
-                    model_type = model_type)
+    model = None
     print("*******\nNOW EVALUATING %s using %s"%(data_type, model_type))
     if model is None:
         #Very important not to try to scale onehot data...
@@ -172,7 +223,7 @@ def eval_train_test(start_dir, data_type, num_epochs, model_type):
             scale_data = False
         print("Model for data type %s not found...will train."%data_type)
         if model_type == "BON":
-            model = BON(input_dim=trainx.size()[1])
+            model = BON(input_dim=trainx.size()[1], num_categories = trainy.shape[1] - 1)
             random_seed = 0
             #For some reason, the fair_esm data encoding type gave HORRIBLE
             #results using the same random seed as all the others. This is 
@@ -213,8 +264,8 @@ def eval_train_test(start_dir, data_type, num_epochs, model_type):
         testpreds = model.predict(testx)
     else:
         raise ValueError("Unrecognized model type passed to model_training_code.")
-    testscore = mcc(testy[:,2], testpreds)
-    trainscore = mcc(trainy[:,2], trainpreds)
+    testscore = mcc(testy[:,-2], testpreds)
+    trainscore = mcc(trainy[:,-2], trainpreds)
     print("Trainscore: %s"%trainscore)
     print("Testscore: %s"%testscore)
     return trainscore, testscore
@@ -280,3 +331,33 @@ def train_evaluate_models(start_dir, action_to_take):
         print("Top sequences retrieved, saved to 'results_and_resources/selected_sequences'.")
     else:
         raise ValueError("Invalid action specified when calling model_training_code.")
+
+
+def train_evaluate_trastuzumab(project_dir):
+    """Convenience function for training models on the training set and evaluating on the
+    test set for trastuzumab specifically.
+
+    Args:
+        project_dir (str): A filepath to the project directory.
+    """
+    os.chdir(os.path.join(project_dir, "trastuzumab_data"))
+    start_dir = os.getcwd()
+    os.chdir("encoded_data")
+    fnames = os.listdir()
+    #This is a little...clunky, but because of the way the pipeline is set up, we have to encode the
+    #data using a variety of different schemes and should make sure all are present before proceeding.
+    for expected_fname in ["adapted_testx.pt", "adapted_trainx.pt"]:
+        if expected_fname not in fnames:
+            print("The data has not been encoded using all of the expected encoding types. This "
+                    "step is required before train test evaluation.")
+            return
+    test_results = eval_train_test(start_dir, "adapted", 
+                    num_epochs=40, model_type = "BON")
+    os.chdir(project_dir)
+    os.chdir("results_and_resources")
+    with open("trastuzumab.txt", "w+") as outf:
+        outf.write("Data type_model,MCC train,MCC test\n")
+        outf.write(key)
+        outf.write(",")
+        outf.write(",".join([str(k) for k in test_results]))
+        outf.write("\n")

@@ -3,11 +3,20 @@ chains and save the results, using markov_chain_direv.py.'''
 
 #Author: Jonathan Parkinson <jlparkinson1@gmail.com>
 
-import numpy as np, matplotlib.pyplot as plt, seaborn as sns, pickle, torch, os, sys
+import os
+import sys
+import pickle
+
+import torch
+import seaborn as sns
+import matplotlib.pyplot as plt
+import numpy as np
 from .markov_chain_direv import MarkovChainDE
 from ..utilities.model_data_loader import load_model, gen_anarci_dict
 from scipy.cluster.hierarchy import linkage, dendrogram, fcluster
 from scipy.spatial.distance import squareform
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+import matplotlib.gridspec as gridspec
 
 full_wt = ('EVQLVESGGGLVQPGGSLRLSCAASGFTFSD--SWIHWVRQAPGKGLEWVAWISP--YGGSTYYADSVK'
         'GRFTISADTSKNTAYLQMNSLRAEDTAVYYCARRHWPGGF----------DYWGQGTLVTVSS')
@@ -115,8 +124,9 @@ def analyze_annealing_results(start_dir):
     distmat = np.sum(distances**2, axis=-1)
     distmat = squareform(distmat)
     z = linkage(distmat, method="median")
-    fig, ax = plt.subplots(figsize=(12,12))
-    _ = dendrogram(z)
+    fig, ax = plt.subplots(figsize=(15,15))
+    _ = dendrogram(z, color_threshold=16)
+    plt.xticks([])
     plt.savefig("Clustering for final sequence set")
     plt.close()
 
@@ -149,25 +159,34 @@ def analyze_annealing_results(start_dir):
         for i in range(len(seq)):
             if seq[i] != shrunk_wt[i]:
                 key_positions.add(i)
-    key_positions = list(key_positions)
-    clust1mat = np.zeros((20, len(clust1[0])))
-    clust2mat = np.zeros((20, len(clust2[0])))
+    key_positions = sorted(list(key_positions))
+    clust1mat = np.zeros((20, len(key_positions)))
+    clust2mat = np.zeros((20, len(key_positions)))
     for seq in clust1:
-        for i in key_positions:
-            clust1mat[aas.index(seq[i]), i] += 1
+        for i, key_pos in enumerate(key_positions):
+            clust1mat[aas.index(seq[key_pos]), i] += 1
     for seq in clust2:
-        for i in key_positions:
-            clust2mat[aas.index(seq[i]), i] += 1
-    fig, (ax1, ax2) = plt.subplots(2, figsize=(12,8), sharex=True)
-    ax1.imshow(clust1mat[:,30:100], cmap="Reds")
+        for i, key_pos in enumerate(key_positions):
+            clust2mat[aas.index(seq[key_pos]), i] += 1
+    clust2mat[clust2mat < 1] = np.nan
+    clust1mat[clust1mat < 1] = np.nan
+    axis_labels = [f"{key_pos + 1}\n({position_dict[key_pos]})" for key_pos in 
+                    key_positions]
+    fig, (ax1, ax2) = plt.subplots(2, figsize=(6,12), sharex=True)
+    #Graph marginal distributions (for the paper)
+    im1 = ax1.imshow(clust1mat, cmap="Reds", aspect=0.5)
     ax1.set_yticks(np.arange(20))
     ax1.set_yticklabels(aas[:-1])
-    ax2.imshow(clust2mat[:,30:100], cmap="Greens")
+    fig.colorbar(im1, ax=ax1)
+
+    im2 = ax2.imshow(clust2mat, cmap="Greens", aspect=0.5)
     ax2.set_yticks(np.arange(20))
     ax2.set_yticklabels(aas[:-1])
-    ax2.set_xticks(np.arange(0,70,3))
-    ax2.set_xticklabels(np.arange(31,101,3))
-    ax2.set_xlabel("Position")
+    fig.colorbar(im2, ax=ax2)
+    
+    ax2.set_xticks(np.arange(0,len(key_positions)))
+    ax2.set_xticklabels(axis_labels)
+    ax2.set_xlabel("Wild type position\n(Chothia numbered position)")
     ax1.set_ylabel("Amino acid")
     ax2.set_ylabel("Amino acid")
     ax1.set_title("Cluster 1 marginal distributions")
