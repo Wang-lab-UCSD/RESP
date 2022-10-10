@@ -1,1 +1,2 @@
-Data type_model,MCC train,MCC test
+Data type_model,MCC train,MCC test,ROC_AUC_test
+NA,0.62946398405789,0.689785470864802,0.9123478235758196

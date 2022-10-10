@@ -17,6 +17,7 @@ from ..utilities.model_data_loader import load_model, save_model, load_data
 from torch.utils.data import random_split
 from sklearn.model_selection import KFold
 from sklearn.metrics import matthews_corrcoef as mcc
+from sklearn.metrics import roc_auc_score
 from sklearn.ensemble import RandomForestClassifier
 from ..model_code.traditional_nn_classification import fcnn_classifier as FCNN
 from ..model_code.variational_Bayes_ordinal_reg import bayes_ordinal_nn as BON
@@ -186,7 +187,8 @@ def get_class_weights(y, as_dict = False):
     return {0:n_instances[0], 1:n_instances[1], 2:n_instances[2]}
 
 
-def eval_train_test(start_dir, data_type, num_epochs, model_type):
+def eval_train_test(start_dir, data_type, num_epochs, model_type,
+        return_all_preds = False):
     """This function builds the specified model type on the specified encoding
     type using the traiing set only if that model does not already exist
     (if the model does already exist it is loaded). Next, it generates
@@ -198,6 +200,9 @@ def eval_train_test(start_dir, data_type, num_epochs, model_type):
         data_type (str): The type of encoding to use.
         num_epochs (int): The number of epochs to train for.
         model_type (str): The model type (fully connected, variational etc.)
+        return_all_preds (bool): If True, return all predictions. This is
+            useful for trastuzumab, where we have to calculate some additional
+            properties aside from MCC.
     """
     trainx, trainy, testx, testy = load_data(start_dir, data_type)
     if trainx is None:
@@ -214,7 +219,9 @@ def eval_train_test(start_dir, data_type, num_epochs, model_type):
         testx = (testx - torch.mean(trainx, dim=0).unsqueeze(0)) / torch.std(trainx, dim=0).unsqueeze(0)
         trainx = (trainx - torch.mean(trainx, dim=0).unsqueeze(0)) / torch.std(trainx, dim=0).unsqueeze(0)
 
-    model = None
+    model = load_model(start_dir,
+            f"{data_type}_trainset_only_{model_type}_model.ptc",
+            model_type)
     print("*******\nNOW EVALUATING %s using %s"%(data_type, model_type))
     if model is None:
         #Very important not to try to scale onehot data...
@@ -268,7 +275,14 @@ def eval_train_test(start_dir, data_type, num_epochs, model_type):
     trainscore = mcc(trainy[:,-2], trainpreds)
     print("Trainscore: %s"%trainscore)
     print("Testscore: %s"%testscore)
-    return trainscore, testscore
+    if not return_all_preds:
+        return trainscore, testscore
+
+    #The remaining code is invoked only if all predictions are desired
+    #by caller, which currently is true only for the trastuzumab experiment.
+    if model_type == "BON":
+        testpreds = model.map_predict(testx)
+    return trainscore, testscore, testpreds, testy[:,-2]
 
 
 def train_evaluate_models(start_dir, action_to_take):
@@ -345,19 +359,24 @@ def train_evaluate_trastuzumab(project_dir):
     os.chdir("encoded_data")
     fnames = os.listdir()
     #This is a little...clunky, but because of the way the pipeline is set up, we have to encode the
-    #data using a variety of different schemes and should make sure all are present before proceeding.
+    #data using a variety of different schemes and should make sure all are
+    #present before proceeding.
     for expected_fname in ["adapted_testx.pt", "adapted_trainx.pt"]:
         if expected_fname not in fnames:
             print("The data has not been encoded using all of the expected encoding types. This "
                     "step is required before train test evaluation.")
             return
-    test_results = eval_train_test(start_dir, "adapted", 
-                    num_epochs=40, model_type = "BON")
+    #Initial experiments on the validation set suggested -- interestingly --
+    #that more epochs are required to reach full performance on trastuzumab
+    #than on PDL1. We doubled the number of epochs to be sure we were reaching
+    #convergence here.
+    test_mcc, train_mcc, testpreds, testy = eval_train_test(start_dir, "adapted",
+                    num_epochs=80, model_type = "BON", return_all_preds = True)
+
+    roc = roc_auc_score(testy, testpreds)
+
     os.chdir(project_dir)
     os.chdir("results_and_resources")
     with open("trastuzumab.txt", "w+") as outf:
-        outf.write("Data type_model,MCC train,MCC test\n")
-        outf.write(key)
-        outf.write(",")
-        outf.write(",".join([str(k) for k in test_results]))
-        outf.write("\n")
+        outf.write("Data type_model,MCC train,MCC test,ROC_AUC_test\n")
+        outf.write(f"NA,{test_mcc},{train_mcc},{roc}\n")

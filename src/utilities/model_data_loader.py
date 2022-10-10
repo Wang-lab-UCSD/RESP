@@ -94,7 +94,12 @@ def load_model(start_dir, model_filename, model_type):
         model_state_dict = torch.load(model_filename)
         if model_type == "BON":
             input_dim = model_state_dict["n1.weight_means"].size()[0]
-            model = BON(input_dim = input_dim)
+            num_categories = model_state_dict["output_layer.fixed_thresh"].shape[0] + 1
+            #This is a hack for backwards compatibility. TODO: Update this
+            if num_categories == 2:
+                model = BON(input_dim = input_dim, num_categories = num_categories)
+            else:
+                model = BON(input_dim = input_dim)
             model.load_state_dict(model_state_dict)
         elif model_type == "adapted":
             model = TAE()

@@ -192,7 +192,7 @@ class bayes_ordinal_nn(torch.nn.Module):
         """Simultaneously calculates scaling values and scales the input data.
         Used on the training set only."""
         self.train_mean = torch.mean(x, dim=0).unsqueeze(0)
-        self.train_std = torch.std(x, dim=0).unsqueeze(0)
+        self.train_std = torch.std(x, dim=0).unsqueeze(0).clip(min=1e-9)
         return self.scale_data(x)
 
     def get_class_weights(self, y):
@@ -230,6 +230,7 @@ class bayes_ordinal_nn(torch.nn.Module):
             Otherwise:
             x (tensor): The scores (the latent score for ordinal regression).
         """
+        xback = torch.clone(x)
         x, kl_loss = self.n1(x, sample, random_seed)
         x = F.elu(x)
         x, kl_loss2 = self.n2(x, sample, random_seed)

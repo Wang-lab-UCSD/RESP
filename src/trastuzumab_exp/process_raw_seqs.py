@@ -86,22 +86,26 @@ def data_split_adj(Ag_pos, Ag_neg, fraction):
                 [Ag_pos[int((data_size_neg*fraction)):len(Ag_pos)],
                  Ag_neg[int((data_size_neg*(1-fraction))):len(Ag_neg)]]
             )
-
     # Combine the positive and negative data frames
+    # Original authors neglected to supply a random seed here, fixed
     Ag_combined = pd.concat([Ag_pos1, Ag_neg1])
-    Ag_combined = Ag_combined.drop_duplicates(subset='AASeq')
-    Ag_combined = Ag_combined.sample(frac=1).reset_index(drop=True)
+    #Ag_combined = Ag_combined.drop_duplicates(subset='AASeq')
+    Ag_combined = Ag_combined.sample(frac=1, random_state=0).reset_index(drop=True)
 
     # 70%/30% training test data split
+    # Original authors neglected to supply a random seed here, fixed
     idx = np.arange(0, Ag_combined.shape[0])
     idx_train, idx_test = train_test_split(
-        idx, stratify=Ag_combined['AgClass'], test_size=0.3
+        idx, stratify=Ag_combined['AgClass'], test_size=0.3,
+        random_state=0
     )
-
+    
     # 50%/50% test validation data split
+    # Original authors neglected to supply a random seed here, fixed
     idx2 = np.arange(0, idx_test.shape[0])
     idx_val, idx_test2 = train_test_split(
-        idx2, stratify=Ag_combined.iloc[idx_test, :]['AgClass'], test_size=0.5
+        idx2, stratify=Ag_combined.iloc[idx_test, :]['AgClass'], test_size=0.5,
+        random_state=0
     )
 
     # Create collection
@@ -111,7 +115,9 @@ def data_split_adj(Ag_pos, Ag_neg, fraction):
         test=Ag_combined.iloc[idx_test, :].iloc[idx_test2, :],
         complete=Ag_combined
     )
-
+    #Add unused to training set and shuffle
+    Seq_Ag_data.train = pd.concat([Seq_Ag_data.train, Unused])
+    Seq_Ag_data.train = Seq_Ag_data.train.sample(frac=1, random_state=0)
     return Seq_Ag_data, Unused
 
 
@@ -170,25 +176,24 @@ def sequence_weighting(mHER_pos, mHER_neg, wt, cutout_positions):
     sequence_dict = {}
     for seq, freq in zip(mHER_neg.AASeq.tolist(),
             mHER_neg.Count.tolist()):
-        sequence_dict[seq] = np.asarray([float(freq), 0, 0])
+        sequence_dict[seq] = np.asarray([float(freq), 0, 0, 0])
     for seq, freq in zip(mHER_pos.AASeq.tolist(),
             mHER_pos.Count.tolist()):
         if seq in sequence_dict:
             sequence_dict[seq][1] = float(freq)
         else:
-            sequence_dict[seq] = np.asarray([0, float(freq), 0])
+            sequence_dict[seq] = np.asarray([0, float(freq), 0, 0])
 
     for seq, freq_data in sequence_dict.items():
         weight = (freq_data.max() + 1.0) / (freq_data.sum() + 3.0)
         sequence_dict[seq][2] = weight
+        sequence_dict[seq][3] = np.argmax(sequence_dict[seq][0:2])
 
-    mHER_pos = prep_seq_dataframe(mHER_pos, sequence_dict, wt, cutout_positions)
-    mHER_neg = prep_seq_dataframe(mHER_neg, sequence_dict, wt, cutout_positions)
-    return mHER_pos, mHER_neg
+    return prep_seq_dataframe(sequence_dict, wt, cutout_positions)
 
 
-def prep_seq_dataframe(input_df, seq_dict, wt, cutoff_pos):
-    """Given an input dataframe, a sequence dict mapping mutant
+def prep_seq_dataframe(seq_dict, wt, cutoff_pos):
+    """Given a sequence dict mapping mutant
     sequences to frequencies & weights, the full wild type sequence,
     and the region into which the mutatant sequence should be inserted,
     this function appends two new columns to the dataframe, one
@@ -209,15 +214,29 @@ def prep_seq_dataframe(input_df, seq_dict, wt, cutoff_pos):
         output_df (pd.DataFrame): The input data frame with the two columns
             described above appended.
     """
-    input_df["weight"] = [seq_dict[seq][2] for seq in
-            input_df.AASeq.tolist()]
-    expanded_seqs = []
-    for seq in input_df.AASeq.tolist():
+    pos_df = {"weight":[], "AgClass":[], "Full_Sequence":[]}
+    neg_df = {"weight":[], "AgClass":[], "Full_Sequence":[]}
+    for seq, values in seq_dict.items():
+        if values[2] < 0.51:
+            continue
         expanded_seq = deepcopy(wt)
         expanded_seq[cutoff_pos[0]:cutoff_pos[1]] = list(seq)
-        expanded_seqs.append("".join(expanded_seq))
-    input_df["Full_Sequence"] = expanded_seqs
-    return input_df
+        category = values[3]
+        if category == 1:
+            pos_df["weight"].append(values[2])
+            pos_df["AgClass"].append(values[3])
+            pos_df["Full_Sequence"].append("".join(expanded_seq))
+        elif category == 0:
+            neg_df["weight"].append(values[2])
+            neg_df["AgClass"].append(values[3])
+            neg_df["Full_Sequence"].append("".join(expanded_seq))
+        else:
+            raise ValueError("Unexpected category encountered.")
+    pos_df = pd.DataFrame.from_dict(pos_df)
+    neg_df = pd.DataFrame.from_dict(neg_df)
+    pos_df.sort_values(by="weight", ascending=False, inplace=True)
+    neg_df.sort_values(by="weight", ascending=False, inplace=True)
+    return pos_df, neg_df
 
 
 def onehot_encode_dataset(input_df, wt):
@@ -262,8 +281,6 @@ def encode_trastuzumab_seqs(start_dir):
     mHER_all_adj, unused_seq = data_split_adj(
         mHER_pos, mHER_neg, fraction=0.5)
 
-    negs = set(mHER_neg.AASeq.tolist())
-    overlaps = [p for p in mHER_pos.AASeq.tolist() if p in negs]
     os.chdir(os.path.join(start_dir, "trastuzumab_data"))
     if "encoded_data" not in os.listdir():
         os.mkdir("encoded_data")
@@ -280,9 +297,9 @@ def encode_trastuzumab_seqs(start_dir):
     encoded_trainx = adapt_model.extract_hidden_rep(onehot_train)
     encoded_testx = adapt_model.extract_hidden_rep(onehot_test)
     encoded_validx = adapt_model.extract_hidden_rep(onehot_valid)
-    encoded_trainx = encoded_trainx[:,cutout_positions[0]:cutout_positions[1],:]
-    encoded_validx = encoded_validx[:,cutout_positions[0]:cutout_positions[1],:]
-    encoded_testx = encoded_testx[:,cutout_positions[0]:cutout_positions[1],:]
+    encoded_trainx = encoded_trainx[:,cutout_positions[0]-12:,:]
+    encoded_validx = encoded_validx[:,cutout_positions[0]-12:,:]
+    encoded_testx = encoded_testx[:,cutout_positions[0]-12:,:]
 
     torch.save(encoded_trainx, "adapted_trainx.pt")
     torch.save(encoded_testx, "adapted_testx.pt")
