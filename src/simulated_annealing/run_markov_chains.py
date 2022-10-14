@@ -6,6 +6,7 @@ chains and save the results, using markov_chain_direv.py.'''
 import os
 import sys
 import pickle
+from copy import deepcopy
 
 import torch
 import seaborn as sns
@@ -234,6 +235,90 @@ def analyze_annealing_results(start_dir):
         outhandle.write(outstring)
     outhandle.close()
     print("Final selected sequences written to file for experimental evaluation.")
+
+
+
+def score_mutations(start_dir):
+    """Scores individual mutations in the sequences selected for
+    experimental evaluation to determine how crucial they are."""
+    os.chdir(os.path.join(start_dir, "results_and_resources", "selected_sequences"))
+    fnames = os.listdir()
+    if "Final_Selected_Sequences.txt" not in fnames:
+        print("The full pipeline has not yet been run; no sequences have "
+            "been selected for experimental eval.")
+        return
+
+    final_scores, mutants = [], []
+    with open("Final_Selected_Sequences.txt", "r") as fhandle:
+        for line in fhandle:
+            if line.startswith(">"):
+                final_scores.append(float(line.split()[1]))
+                mutants.append(line.strip().split()[-1])
+
+    os.chdir(start_dir)
+    position_dict, _ = gen_anarci_dict(start_dir)
+
+    high_scoring_seqs = []
+    for mutant in mutants:
+        positions = [int(s.split("[")[1].split("]")[0]) - 1 for s in
+                mutant.split(",")]
+        mutations = [s.split("]")[-1] for s in mutant.split(",")]
+        positions = [position_dict[position] for position in positions]
+        high_scoring_seq = deepcopy(list(full_wt))
+        for mutation, position in zip(mutations, positions):
+            high_scoring_seq[position] = mutation
+        high_scoring_seq = "".join(high_scoring_seq)
+        high_scoring_seqs.append( (high_scoring_seq, positions) )
+
+    varbayes_mod = load_model(start_dir,
+            "atezolizumab_varbayes_model.ptc", model_type="BON")
+    #We create a MarkovChainDE object to make use of its handy built
+    #in features for encoding all of the sequences we just re-loaded --
+    #not in order to run another chain.
+    os.chdir("encoded_data")
+    prob_distro = np.load("rh02_rh03_prob_distribution.npy")
+    mark = MarkovChainDE(full_wt, prob_distro, start_dir)
+
+    #Two lists -- one to track impact of mutation if introduced into WT,
+    #the other to track impact if subtracted.
+    seqs_with_reverse_score_changes = []
+    wt_score = mark.score_seq(full_wt)
+    fwd_score_shift_dict = dict()
+    for mutant, final_score, high_scoring_seq in zip(mutants, final_scores,
+                    high_scoring_seqs):
+        seq, positions = high_scoring_seq
+        seq = list(seq)
+        for mutation, position in zip(mutant.split(","), positions):
+            if mutation in fwd_score_shift_dict:
+                continue
+            alt_seq = deepcopy(list(full_wt))
+            alt_seq[position] = seq[position]
+            new_score = mark.score_seq("".join(alt_seq))
+            fwd_score_shift_dict[mutation] = new_score - wt_score
+
+        score_change = []
+        for position in positions:
+            alt_seq = deepcopy(seq)
+            alt_seq[position] = full_wt[position]
+            new_score = mark.score_seq("".join(alt_seq))
+            score_change.append(new_score - final_score)
+        seqs_with_reverse_score_changes.append( (mutant, positions, score_change) )
+
+    os.chdir(start_dir)
+    os.chdir(os.path.join("results_and_resources", "selected_sequences"))
+    fhandle = open("Mutation_scoring.csv", "w+")
+    fhandle.write("Mutation,forward_score,reverse_scores\n")
+    for mutation, fwd_score in fwd_score_shift_dict.items():
+        fhandle.write(f"{mutation},{fwd_score},")
+        for rev_data in seqs_with_reverse_score_changes:
+            if mutation not in rev_data[0]:
+                continue
+            position = rev_data[0].split(",").index(mutation)
+            underscored_mutation = "_".join(rev_data[0].split(","))
+            fhandle.write(f"{underscored_mutation},{rev_data[2][position]}")
+        fhandle.write("\n")
+    fhandle.close()
+    os.chdir(start_dir)
 
 
 #A helper function to load the sequences saved from the simulated

@@ -258,6 +258,39 @@ def onehot_encode_dataset(input_df, wt):
     return onehot_encoded, yvalues
 
 
+
+def prep_exp_valid_seqs(project_dir, wt, cutout_positions):
+    """Encodes the experimentally validated seqs from the Nature Biotech
+    paper for later scoring."""
+    os.chdir(project_dir)
+    adapt_model = load_model(project_dir, "TaskAdapted_Autoencoder.ptc", "adapted")
+    os.chdir("trastuzumab_data")
+    start_dir = os.getcwd()
+
+    os.chdir(start_dir)
+    exp_seqs = pd.read_csv("selected_55.txt")
+    trimmed_seqs = [s[3:-2] for s in exp_seqs["Seq"].tolist()]
+    trimmed_seqs = [wt[:cutout_positions[0]] + list(s) + wt[cutout_positions[1]:]
+            for s in trimmed_seqs]
+    trimmed_seqs = ["".join(s) for s in trimmed_seqs]
+    exp_seqs["Full_Sequence"] = trimmed_seqs
+    #Enter dummy information so we can use the one hot encoding function unmodified.
+    #We will save the Kd in place of the weights.
+    exp_seqs["AgClass"] = np.zeros((exp_seqs.shape[0]))
+    exp_seqs["weight"] = exp_seqs["Kd"].values
+
+    x_exp, y_exp = onehot_encode_dataset(exp_seqs, wt)
+    y_exp = y_exp[:,2]
+    encoded_x_exp = adapt_model.extract_hidden_rep(x_exp)
+    encoded_x_exp = encoded_x_exp[:,cutout_positions[0]-12:,:]
+    os.chdir("encoded_data")
+    torch.save(encoded_x_exp, "experimental_seqs.pt")
+    torch.save(y_exp, "experimental_kd.pt")
+
+    os.chdir(start_dir)
+
+
+
 def encode_trastuzumab_seqs(start_dir):
     """Encodes the raw mutant sequences in an appropriate form for input
     into the autoencoder or other encoding scheme.
@@ -306,4 +339,6 @@ def encode_trastuzumab_seqs(start_dir):
     torch.save(encoded_validx, "adapted_validx.pt")
     torch.save(ytrain, "trainy.pt")
     torch.save(ytest, "testy.pt")
-    torch.save(ytest, "validy.pt")
+    torch.save(yvalid, "validy.pt")
+
+    prep_exp_valid_seqs(start_dir, wt, cutout_positions)

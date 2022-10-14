@@ -1,26 +1,24 @@
 '''This file enables straightforward reproduction of some important experiments:
 training models on the training set only and evaluating them on the test
-set, building the final model, scoring all sequences and extracting the 
+set, building the final model, scoring all sequences and extracting the
 top 500, scoring the wild-type.'''
 
 #Author: Jonathan Parkinson <jlparkinson1@gmail.com>
 
 import os
-import sys
-import argparse
-import pickle
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 import torch
-from ..utilities.model_data_loader import load_model, save_model, load_data
-from torch.utils.data import random_split
-from sklearn.model_selection import KFold
+from scipy.stats import pearsonr
 from sklearn.metrics import matthews_corrcoef as mcc
 from sklearn.metrics import roc_auc_score
 from sklearn.ensemble import RandomForestClassifier
+
+from ..utilities.model_data_loader import load_model, save_model, load_data
 from ..model_code.traditional_nn_classification import fcnn_classifier as FCNN
 from ..model_code.variational_Bayes_ordinal_reg import bayes_ordinal_nn as BON
+
 
 #TODO: Move full_wt_seq and aas to a constants file.
 full_wt_seq = ('EVQLVESGGGLVQPGGSLRLSCAASGFTFSD--SWIHWVRQAPGKGLEWVAWISP--'
@@ -40,15 +38,15 @@ def get_wt_score(start_dir):
             model_type="BON")
     if autoencoder is None:
         raise ValueError("Autoencoder not yet trained / saved.")
-    
+ 
     onehot_wt = np.zeros((1,132,21))
-    for i in range(len(full_wt_seq)):
-        onehot_wt[0,i,aas.index(full_wt_seq[i])] = 1.0
+    for i, letter in enumerate(full_wt_seq):
+        onehot_wt[0,i,aas.index(letter)] = 1.0
     onehot_wt = torch.from_numpy(onehot_wt).float()
-    x = autoencoder.extract_hidden_rep(onehot_wt.cuda()).cpu()
-    x = x[:,29:124,:].flatten(1,-1)
-    score, stdev = varbayes_model.extract_hidden_rep(x, use_MAP=True)
-    print("WT MAP score: %s"%score.numpy().flatten()[0])
+    x_wt = autoencoder.extract_hidden_rep(onehot_wt.cuda()).cpu()
+    x_wt = x[:,29:124,:].flatten(1,-1)
+    score, _ = varbayes_model.extract_hidden_rep(x_wt, use_MAP=True)
+    print(f"WT MAP score: {score.numpy().flatten()[0]}")
 
 def get_best_seqs(start_dir, num_to_keep = 4000):
     """This function scores all sequences in both training and test sets,
@@ -71,7 +69,7 @@ def get_best_seqs(start_dir, num_to_keep = 4000):
         raise ValueError("Encoded data has not yet been generated.")
     y = torch.cat([rawy1, rawy2], dim=0)
     x = torch.cat([rawx1, rawx2], dim=0)
-    
+
     x_encoded = autoencoder.extract_hidden_rep(x.cuda())
     x_encoded = x_encoded[:,29:124,:].flatten(1,-1)
     xscores, stdevs = varbayes_model.extract_hidden_rep(x_encoded, use_MAP=True)
@@ -90,13 +88,13 @@ def get_best_seqs(start_dir, num_to_keep = 4000):
     #the other encodings...we have to convert the one-hot back into sequence.
     #We could have avoided this by assigning each sequence a unique ID, or
     #by doing the train-test split before the onehot. At this point however
-    #this is baked into the pipeline and for now is only a minor inconvenience 
+    #this is baked into the pipeline and for now is only a minor inconvenience
     #for now...
     for i in range(best_onehot.size()[0]):
         current_seq = []
         for j in range(best_onehot.size()[1]):
             current_seq.append(aas[torch.argmax(best_onehot[i,j,:]).item()])
-        current_seq.append(" %s"%best_scores[i])
+        current_seq.append(f" {best_scores[i]}")
         current_seq.append("\n")
         textfile_copy.write(''.join(current_seq))
     textfile_copy.close()
@@ -128,9 +126,9 @@ def plot_all_scores(start_dir):
 
     x_encoded = autoencoder.extract_hidden_rep(x.cuda())
     x_encoded = x_encoded[:,29:124,:].flatten(1,-1)
-    xscores, stdevs = varbayes_model.extract_hidden_rep(x_encoded, use_MAP=True)
+    xscores, _ = varbayes_model.extract_hidden_rep(x_encoded, use_MAP=True)
     xscores = xscores.numpy().flatten()
-    
+
     os.chdir(start_dir)
     os.chdir(os.path.join("results_and_resources", "selected_sequences"))
     plt.style.use("bmh")
@@ -156,11 +154,11 @@ def train_final_model(start_dir, num_epochs):
     xtrain = torch.cat([trainx, testx], dim=0)
     ytrain = torch.cat([trainy, testy], dim=0)
     xtrain = xtrain.flatten(1,-1)
-    
+
     model = BON(input_dim=xtrain.size()[1])
     losses = model.trainmod(xtrain, ytrain, lr=0.005, scale_data = True,
             num_samples = 10)
-    save_model(start_dir, "atezolizumab_varbayes_model.ptc", model) 
+    save_model(start_dir, "atezolizumab_varbayes_model.ptc", model)
 
 def get_class_weights(y, as_dict = False):
     """This function is used to generate class weights for the random forest and
@@ -182,7 +180,7 @@ def get_class_weights(y, as_dict = False):
                                 classes.shape[0] / np.argwhere(classes==1).shape[0],
                                 classes.shape[0] / np.argwhere(classes==2).shape[0]])
     n_instances = n_instances / np.max(n_instances)
-    if as_dict == False:
+    if not as_dict:
         return torch.from_numpy(n_instances)
     return {0:n_instances[0], 1:n_instances[1], 2:n_instances[2]}
 
@@ -231,15 +229,7 @@ def eval_train_test(start_dir, data_type, num_epochs, model_type,
         print("Model for data type %s not found...will train."%data_type)
         if model_type == "BON":
             model = BON(input_dim=trainx.size()[1], num_categories = trainy.shape[1] - 1)
-            random_seed = 0
-            #For some reason, the fair_esm data encoding type gave HORRIBLE
-            #results using the same random seed as all the others. This is 
-            #definitely a black mark against fair_esm...but just to give
-            #fair_esm a "fair shake", we tried using a different random seed
-            #for it just in case. It still didn't perform well...
-            if data_type == "fair_esm":
-                random_seed = 10
-            losses = model.trainmod(trainx, trainy, 
+            _ = model.trainmod(trainx, trainy,
                     epochs=num_epochs, scale_data=scale_data, random_seed=0,
                     num_samples=10)
             save_model(start_dir, "%s_trainset_only_%s_model.ptc"%(data_type, model_type),
@@ -247,14 +237,14 @@ def eval_train_test(start_dir, data_type, num_epochs, model_type,
         elif model_type == "FCNN":
             class_weights = get_class_weights(trainy)
             model = FCNN(dropout = 0.2, input_dim = trainx.size()[1])
-            losses = model.trainmod(trainx, trainy, epochs=num_epochs, class_weights = 
+            losses = model.trainmod(trainx, trainy, epochs=num_epochs, class_weights =
                     class_weights, lr=0.005)
             save_model(start_dir, "%s_trainset_only_%s_model.ptc"%(data_type, model_type),
                                 model)
         elif model_type == "RF":
             class_weights = get_class_weights(trainy, as_dict=True)
             model = RandomForestClassifier(n_estimators=500,
-                        min_samples_split=25, min_samples_leaf=4, 
+                        min_samples_split=25, min_samples_leaf=4,
                         n_jobs=3, class_weight=class_weights,
                         random_state = 0)
             model.fit(trainx, trainy[:,-2], sample_weight=trainy[:,-1])
@@ -380,3 +370,54 @@ def train_evaluate_trastuzumab(project_dir):
     with open("trastuzumab.txt", "w+") as outf:
         outf.write("Data type_model,MCC train,MCC test,ROC_AUC_test\n")
         outf.write(f"NA,{test_mcc},{train_mcc},{roc}\n")
+
+
+def score_trastuzumab(project_dir):
+    """Scores the 55 sequences selected for experimental evaluation in
+    the original paper.
+
+    Args:
+        project_dir (str): A filepath to the project directory.
+    """
+    os.chdir(os.path.join(project_dir, "trastuzumab_data"))
+    start_dir = os.getcwd()
+
+    model = load_model(start_dir,
+            "adapted_trainset_only_BON_model.ptc", "BON")
+    if model is None:
+        raise ValueError("The trastuzumab model has not yet been trained.")
+    os.chdir(start_dir)
+    os.chdir("encoded_data")
+    if "experimental_seqs.pt" not in os.listdir() or "experimental_kd.pt" \
+            not in os.listdir():
+        raise ValueError("The experimental seqs have not been encoded yet.")
+
+    kd_values = torch.load("experimental_kd.pt").numpy()
+    train_x = torch.load("adapted_trainx.pt").flatten(1,-1)
+    x_data = torch.load("experimental_seqs.pt").flatten(1, -1)
+    train_y = torch.load("trainy.pt")
+    train_scores = model.extract_hidden_rep(train_x, use_MAP=True)[0].numpy().flatten()
+    score, stdev = model.extract_hidden_rep(x_data, num_samples=1000,
+                        random_seed = 123)
+
+    import pdb
+    pdb.set_trace()
+    score, stdev = score.numpy(), stdev.numpy()
+    os.chdir(start_dir)
+    os.chdir("results_and_resources")
+    plt.style.use("bmh")
+    sns.kdeplot(train_scores[train_y[:,1]==0], label="Nonbinders, training set", bw=0.25)
+    sns.kdeplot(train_scores[train_y[:,1]==1], label="Binders, training set", bw=0.25)
+    sns.kdeplot(score, label="Experimentally evaluated seqs", bw=0.25)
+    #Plot the score for trastuzumab
+    matching_x, matching_y = np.full((50),score[-1]), np.linspace(0, 0.5, 50)
+    plt.plot(matching_x, matching_y, label="Trastuzumab_score")
+
+    plt.legend()
+    plt.xlabel("Model assigned score")
+    plt.ylabel("PDF")
+    plt.title("Model assigned score for sequences "
+            "from\nMason et al.")
+    plt.savefig("model_scores.png")
+    plt.close()
+    print(pearsonr(np.log(stdev), np.log(kd_values)))
