@@ -400,9 +400,20 @@ def score_trastuzumab(project_dir):
     score, stdev = model.extract_hidden_rep(x_data, num_samples=1000,
                         random_seed = 123)
 
+    score, stdev = score.numpy(), stdev.numpy()
+    percentile = [train_scores[train_scores<s].shape[0] / train_scores.shape[0] for s in score.tolist()]
+    mismatch = []
+    for s in score.tolist():
+        if s < np.percentile(train_scores, q=50):
+            mismatch.append("Score < 50th\npercentile")
+        elif s < np.percentile(train_scores, q=75):
+            mismatch.append("Score < 75th\npercentile")
+        elif s < np.percentile(train_scores, q=90):
+            mismatch.append("Score < 90th\npercentile")
+        else:
+            mismatch.append("Score > 90th percentile")
     import pdb
     pdb.set_trace()
-    score, stdev = score.numpy(), stdev.numpy()
     os.chdir(start_dir)
     os.chdir("results_and_resources")
     plt.style.use("bmh")
