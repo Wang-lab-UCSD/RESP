@@ -10,7 +10,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 import torch
-from scipy.stats import pearsonr
+from scipy.stats import mannwhitneyu as MWU
 from sklearn.metrics import matthews_corrcoef as mcc
 from sklearn.metrics import roc_auc_score
 from sklearn.ensemble import RandomForestClassifier
@@ -394,41 +394,50 @@ def score_trastuzumab(project_dir):
 
     kd_values = torch.load("experimental_kd.pt").numpy()
     train_x = torch.load("adapted_trainx.pt").flatten(1,-1)
+    test_x = torch.load("adapted_testx.pt").flatten(1,-1)
     x_data = torch.load("experimental_seqs.pt").flatten(1, -1)
     train_y = torch.load("trainy.pt")
-    train_scores = model.extract_hidden_rep(train_x, use_MAP=True)[0].numpy().flatten()
-    score, stdev = model.extract_hidden_rep(x_data, num_samples=1000,
-                        random_seed = 123)
+    test_y = torch.load("testy.pt").numpy()
 
-    score, stdev = score.numpy(), stdev.numpy()
-    percentile = [train_scores[train_scores<s].shape[0] / train_scores.shape[0] for s in score.tolist()]
-    mismatch = []
-    for s in score.tolist():
-        if s < np.percentile(train_scores, q=50):
-            mismatch.append("Score < 50th\npercentile")
-        elif s < np.percentile(train_scores, q=75):
-            mismatch.append("Score < 75th\npercentile")
-        elif s < np.percentile(train_scores, q=90):
-            mismatch.append("Score < 90th\npercentile")
-        else:
-            mismatch.append("Score > 90th percentile")
-    import pdb
-    pdb.set_trace()
+    train_scores = model.extract_hidden_rep(train_x, use_MAP=True)[0].numpy().flatten()
+    score = model.extract_hidden_rep(x_data, use_MAP=True)[0].numpy().flatten()
+
     os.chdir(start_dir)
     os.chdir("results_and_resources")
     plt.style.use("bmh")
-    sns.kdeplot(train_scores[train_y[:,1]==0], label="Nonbinders, training set", bw=0.25)
-    sns.kdeplot(train_scores[train_y[:,1]==1], label="Binders, training set", bw=0.25)
-    sns.kdeplot(score, label="Experimentally evaluated seqs", bw=0.25)
-    #Plot the score for trastuzumab
-    matching_x, matching_y = np.full((50),score[-1]), np.linspace(0, 0.5, 50)
-    plt.plot(matching_x, matching_y, label="Trastuzumab_score")
-
-    plt.legend()
+    labels = ["Nonbinder, training set" if s == 0 else "Binder, training set" for
+            s in train_y[:,1].tolist()]
+    sns.displot(x=train_scores, hue=labels)
     plt.xlabel("Model assigned score")
-    plt.ylabel("PDF")
-    plt.title("Model assigned score for sequences "
-            "from\nMason et al.")
-    plt.savefig("model_scores.png")
+    plt.title("Model assigned score for training set sequences\n"
+            "from Mason et al.")
+    plt.savefig("model_training_scores.png", bbox_inches = "tight")
     plt.close()
-    print(pearsonr(np.log(stdev), np.log(kd_values)))
+
+    _ = plt.hist(score, label="Experimentally evaluated seqs")
+    matching_x, matching_y = np.full((50),score[-1]), np.linspace(0, 10, 50)
+    plt.plot(matching_x, matching_y, label="Trastuzumab_score")
+    plt.xlabel("Model assigned score")
+    plt.title("Model assigned score for experimentally evaluated\nsequences "
+            "from Mason et al.")
+    plt.legend()
+    plt.savefig("model_exp_scores.png", bbox_inches = "tight")
+    plt.close()
+    #Plot the score for trastuzumab
+
+
+    testpreds = model.map_categorize(test_x)
+    mismatches = ["Correct prediction" if p == gt else "Incorrect prediction" for
+            p, gt in zip(testpreds.tolist(), test_y[:,1].tolist())]
+    score, stdev = model.extract_hidden_rep(test_x, num_samples=250,
+                        random_seed = 123)
+    score, stdev = score.numpy(), stdev.numpy()
+    sns.boxplot(x=mismatches, y=np.log(stdev), notch=True)
+    plt.title("Model uncertainty for correct and incorrect test set predictions.")
+    plt.ylabel("Log standard deviation")
+    plt.savefig("Uncertainty_vs_pred.png", bbox_inches = "tight")
+    plt.close()
+
+    correct_stdev = [s for s, m in zip(stdev.tolist(), mismatches) if m == "Correct prediction"]
+    incorrect_stdev = [s for s, m in zip(stdev.tolist(), mismatches) if m == "Incorrect prediction"]
+    print(MWU(correct_stdev, incorrect_stdev))
