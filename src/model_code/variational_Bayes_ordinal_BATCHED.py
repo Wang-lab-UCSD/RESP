@@ -33,12 +33,12 @@ class batched_bayes_ordinal_nn(bayes_ordinal_nn):
         Used on the training set only. Parent class is overwritten
         since we can only load a batch at a time, whereas parent class
         was intended for data loaded to memory."""
-        x1 = torch.load(xfiles[0])
-        self.train_mean = torch.zeros((1,x1.shape[0]))
-        self.train_std = torch.zeros((1,x1.shape[0]))
+        x1 = torch.flatten(torch.load(xfiles[0]), start_dim=1)
+        self.train_mean = torch.zeros((1,x1.shape[1]))
+        self.train_std = torch.zeros((1,x1.shape[1]))
         ndpoints = 0
         for xfile in xfiles:
-            x = torch.load(xfile)
+            x = torch.flatten(torch.load(xfile), start_dim=1)
             batch_mean = torch.mean(x, dim=0)
             batch_std = torch.std(x, dim=0)
 
@@ -60,7 +60,7 @@ class batched_bayes_ordinal_nn(bayes_ordinal_nn):
         imbalance. Overwrites the parent class since we need to be able
         to generate these for batches rather than the whole dataset."""
         classes = [torch.load(yfile)[:,-2].numpy() for yfile in yfiles]
-        classes = np.concatenate(all_labels)
+        classes = np.concatenate(classes)
         n_instances = np.asarray([classes.shape[0] / np.argwhere(classes==i).shape[0] for
                         i in range(self.num_outputs + 1)])
         self.class_weight_instances = n_instances / np.max(n_instances)
@@ -68,7 +68,8 @@ class batched_bayes_ordinal_nn(bayes_ordinal_nn):
 
     def get_batch_class_weights(self, y):
         """Gets class weights for a minibatch of data."""
-        class_weights = np.zeros((y.size()[0])) 
+        class_weights = np.zeros((y.size()[0]))
+        classes = y[:,-2].cpu().numpy()
         for i in range(self.num_outputs + 1):
             class_weights[np.argwhere(classes==i).flatten()] = \
                     self.class_weight_instances[i]
@@ -134,13 +135,12 @@ class batched_bayes_ordinal_nn(bayes_ordinal_nn):
             if random_seed is not None:
                 torch.manual_seed(epoch%50)
             permutation = torch.randperm(len(xfiles)).tolist()
-            for idx in permutation:
+            for j in permutation:
                 x_mini, y_mini = torch.load(xfiles[j]).float(),\
                         torch.load(yfiles[j])
-            for j in range(0, x.size()[0], minibatch):
-                indices = permutation[j:j+minibatch]
-                x_mini, y_mini = x[indices,:].cuda(), y[indices,:].cuda()
+                x_mini = torch.flatten(x_mini, start_dim=1).cuda()
                 class_weights_mini = self.get_batch_class_weights(y_mini).cuda()
+                y_mini = y_mini.cuda()
                 loss = 0
                 for i in range(num_samples):
                     if random_seed is not None:

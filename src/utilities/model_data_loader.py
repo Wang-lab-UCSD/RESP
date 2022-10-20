@@ -15,7 +15,7 @@ from ..model_code.unadapted_autoencoder import UnadaptedAutoencoder as UAE
 from ..model_code import task_adapted_ae_linlayer_subsampled
 from ..model_code.task_adapted_ae_linlayer_subsampled import TaskAdaptedAeLinlayerSampled
 from ..model_code.variational_Bayes_ordinal_BATCHED import batched_bayes_ordinal_nn as BATCHED_BON
-
+from ..model_code.batched_trad_nn_classification import batched_fcnn_classifier as BATCHED_FCNN
 
 #A list of numbered positions for Chothia antibody sequence numbering.
 chothia_list = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11',
@@ -124,6 +124,10 @@ def load_model(start_dir, model_filename, model_type):
             input_dim = model_state_dict["n1.weight"].size()[1]
             model = FCNN(input_dim=input_dim)
             model.load_state_dict(model_state_dict)
+        elif model_type == "BATCHED_FCNN":
+            input_dim = model_state_dict["n1.weight"].size()[1]
+            model = BATCHED_FCNN(input_dim=input_dim)
+            model.load_state_dict(model_state_dict)
         elif model_type == "subsample":
             model = TaskAdaptedAeLinlayerSampled()
             model.load_state_dict(model_state_dict)
@@ -194,3 +198,38 @@ def load_data(start_dir, data_type):
 
     os.chdir(start_dir)
     return data_files
+
+
+def get_antiberty_file_list(start_dir):
+    """This function gets a list of x and yfiles for the antiberty encoded
+    dataset, which is too large to load to memory during training.
+
+    Args:
+        start_dir (str): The path to the starting directory.
+
+    Returns:
+        trainx_files (list): A list of training xfiles.
+        testx_files (list): A list of test xfiles.
+        trainy_files (list): A list of training yfiles.
+        testy_files (list): A list of test yfiles.
+    """
+    os.chdir(start_dir)
+    os.chdir("encoded_data")
+    if "antiberty_embeds" not in os.listdir():
+        raise ValueError("Antiberty data not encoded yet.")
+    os.chdir("antiberty_embeds")
+    train = [os.path.abspath(f) for f in os.listdir() if f.startswith("antiberty_train")]
+    test = [os.path.abspath(f) for f in os.listdir() if f.startswith("antiberty_test")]
+    trainx = [f for f in train if f.endswith("x.pt")]
+    trainy = [f for f in train if f.endswith("y.pt")]
+    testx = [f for f in test if f.endswith("x.pt")]
+    testy = [f for f in test if f.endswith("y.pt")]
+
+    trainx.sort()
+    trainy.sort()
+    testx.sort()
+    testy.sort()
+
+    os.chdir(start_dir)
+    return trainx, testx, trainy, testy
+

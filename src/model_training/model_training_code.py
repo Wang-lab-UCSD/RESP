@@ -15,11 +15,11 @@ from sklearn.metrics import matthews_corrcoef as mcc
 from sklearn.metrics import roc_auc_score
 from sklearn.ensemble import RandomForestClassifier
 
-from ..utilities.model_data_loader import load_model, save_model, load_data
+from ..utilities.model_data_loader import load_model, save_model, load_data, get_antiberty_file_list
 from ..model_code.traditional_nn_classification import fcnn_classifier as FCNN
 from ..model_code.variational_Bayes_ordinal_reg import bayes_ordinal_nn as BON
 from ..model_code.variational_Bayes_ordinal_BATCHED import batched_bayes_ordinal_nn as BATCHED_BON
-
+from ..model_code.batched_trad_nn_classification import batched_fcnn_classifier as BATCHED_FCNN
 
 #TODO: Move full_wt_seq and aas to a constants file.
 full_wt_seq = ('EVQLVESGGGLVQPGGSLRLSCAASGFTFSD--SWIHWVRQAPGKGLEWVAWISP--'
@@ -48,6 +48,8 @@ def get_wt_score(start_dir):
     x_wt = x[:,29:124,:].flatten(1,-1)
     score, _ = varbayes_model.extract_hidden_rep(x_wt, use_MAP=True)
     print(f"WT MAP score: {score.numpy().flatten()[0]}")
+
+
 
 def get_best_seqs(start_dir, num_to_keep = 4000):
     """This function scores all sequences in both training and test sets,
@@ -161,6 +163,7 @@ def train_final_model(start_dir, num_epochs):
             num_samples = 10)
     save_model(start_dir, "atezolizumab_varbayes_model.ptc", model)
 
+
 def get_class_weights(y, as_dict = False):
     """This function is used to generate class weights for the random forest and
     fully connected classifiers, which are generated as baselines for comparison
@@ -186,8 +189,25 @@ def get_class_weights(y, as_dict = False):
     return {0:n_instances[0], 1:n_instances[1], 2:n_instances[2]}
 
 
+def get_batched_class_weights(yfiles):
+    """This function is used to generate class weights for the batched fully
+    connected classifier.
+
+    Args:
+        yfiles (list): A list of the y data files.
+
+    Returns:
+        class_weights: A tensor.
+    """
+    classes = [torch.load(yfile) for yfile in yfiles]
+    classes = torch.cat(classes, dim=0)
+    return get_class_weights(classes)
+
+
+
+
 def eval_train_test(start_dir, data_type, num_epochs, model_type,
-        return_all_preds = False):
+        return_all_preds = False, dropout = 0.2):
     """This function builds the specified model type on the specified encoding
     type using the traiing set only if that model does not already exist
     (if the model does already exist it is loaded). Next, it generates
@@ -219,7 +239,7 @@ def eval_train_test(start_dir, data_type, num_epochs, model_type,
             testx = (testx - torch.mean(trainx, dim=0).unsqueeze(0)) / torch.std(trainx, dim=0).unsqueeze(0)
             trainx = (trainx - torch.mean(trainx, dim=0).unsqueeze(0)) / torch.std(trainx, dim=0).unsqueeze(0)
     else:
-        pass
+        trainx_files, testx_files, trainy_files, testy_files = get_antiberty_file_list(start_dir)
 
 
     model = load_model(start_dir,
@@ -239,20 +259,34 @@ def eval_train_test(start_dir, data_type, num_epochs, model_type,
                     num_samples=10)
             save_model(start_dir, "%s_trainset_only_%s_model.ptc"%(data_type, model_type),
                                 model)
+        
         elif model_type == "BATCHED_BON":
-            model = BATCHED_BON(input_dim=trainx.size()[1], num_categories = trainy.shape[1] - 1)
-            _ = model.trainmod(trainx, trainy,
+            xinit, yinit = torch.load(trainx_files[0]), torch.load(trainy_files[0])
+            xinit = torch.flatten(xinit, start_dim=1)
+            model = BATCHED_BON(input_dim=xinit.size()[1], num_categories = yinit.shape[1] - 1)
+            _ = model.trainmod(trainx_files, trainy_files,
                     epochs=num_epochs, scale_data=scale_data, random_seed=0,
                     num_samples=10)
             save_model(start_dir, "%s_trainset_only_%s_model.ptc"%(data_type, model_type),
                                 model)
+
+        elif model_type == "BATCHED_FCNN":
+            class_weights = get_batched_class_weights(trainy_files)
+            xinit = torch.flatten(torch.load(trainx_files[0]), start_dim=1)
+            model = BATCHED_FCNN(dropout = dropout, input_dim = xinit.size()[1])
+            losses = model.trainmod(trainx_files, trainy_files, epochs=num_epochs, class_weights =
+                    class_weights, lr=0.005)
+            save_model(start_dir, "%s_trainset_only_%s_model.ptc"%(data_type, model_type),
+                                model)
+
         elif model_type == "FCNN":
             class_weights = get_class_weights(trainy)
-            model = FCNN(dropout = 0.2, input_dim = trainx.size()[1])
+            model = FCNN(dropout = dropout, input_dim = trainx.size()[1])
             losses = model.trainmod(trainx, trainy, epochs=num_epochs, class_weights =
                     class_weights, lr=0.005)
             save_model(start_dir, "%s_trainset_only_%s_model.ptc"%(data_type, model_type),
                                 model)
+
         elif model_type == "RF":
             class_weights = get_class_weights(trainy, as_dict=True)
             model = RandomForestClassifier(n_estimators=500,
@@ -262,22 +296,60 @@ def eval_train_test(start_dir, data_type, num_epochs, model_type,
             model.fit(trainx, trainy[:,-2], sample_weight=trainy[:,-1])
             save_model(start_dir, "%s_trainset_only_RF_model.pk"%(data_type),
                                 model)
+
     if model_type == "BON":
         trainpreds = model.map_categorize(trainx)
         testpreds = model.map_categorize(testx)
+
+    elif model_type == "BATCHED_BON":
+        trainy, testy, trainpreds, testpreds = [], [], [], []
+        for xfile, yfile in zip(testx_files, testy_files):
+            x, y = torch.load(xfile), torch.load(yfile)
+            testy.append(y)
+            x = torch.flatten(x, start_dim=1)
+            testpreds.append(model.map_categorize(x))
+        for xfile, yfile in zip(trainx_files, trainy_files):
+            x, y = torch.load(xfile), torch.load(yfile)
+            trainy.append(y)
+            x = torch.flatten(x, start_dim=1)
+            trainpreds.append(model.map_categorize(x))
+        trainy = torch.cat(trainy, dim=0).numpy()
+        testy = torch.cat(testy, dim=0).numpy()
+        trainpreds = np.concatenate(trainpreds)
+        testpreds = np.concatenate(testpreds)
+
     elif model_type == "FCNN":
         trainpreds = model.predict(trainx)[1]
         testpreds = model.predict(testx)[1]
+
+    elif model_type == "BATCHED_FCNN":
+        trainy, testy, trainpreds, testpreds = [], [], [], []
+        for xfile, yfile in zip(testx_files, testy_files):
+            x, y = torch.load(xfile), torch.load(yfile)
+            testy.append(y)
+            x = torch.flatten(x, start_dim=1)
+            testpreds.append(model.predict(x)[1])
+        for xfile, yfile in zip(trainx_files, trainy_files):
+            x, y = torch.load(xfile), torch.load(yfile)
+            trainy.append(y)
+            x = torch.flatten(x, start_dim=1)
+            trainpreds.append(model.predict(x)[1])
+        trainy = torch.cat(trainy, dim=0).numpy()
+        testy = torch.cat(testy, dim=0).numpy()
+        trainpreds = np.concatenate(trainpreds)
+        testpreds = np.concatenate(testpreds)
+
     elif model_type == "RF":
         trainpreds = model.predict(trainx)
         testpreds = model.predict(testx)
+
     else:
         raise ValueError("Unrecognized model type passed to model_training_code.")
     testscore = mcc(testy[:,-2], testpreds)
     trainscore = mcc(trainy[:,-2], trainpreds)
     print("Trainscore: %s"%trainscore)
     print("Testscore: %s"%testscore)
-    if not return_all_preds:
+    if not return_all_preds or data_type == "antiberty":
         return trainscore, testscore
 
     #The remaining code is invoked only if all predictions are desired
@@ -285,6 +357,10 @@ def eval_train_test(start_dir, data_type, num_epochs, model_type,
     if model_type == "BON":
         testpreds = model.map_predict(testx)
     return trainscore, testscore, testpreds, testy[:,-2]
+
+
+
+
 
 
 def train_evaluate_models(start_dir, action_to_take):
@@ -309,7 +385,7 @@ def train_evaluate_models(start_dir, action_to_take):
             print("The data has not been encoded using all of the expected encoding types. This "
                     "step is required before train test evaluation.")
             return
-    if "ablang_trainx.pt" in fnames:
+    if "ablang_trainx.pt" in fnames and "antiberty_embeds" in fnames:
         alternate_encodings = True
 
     if action_to_take == "traintest_eval":
@@ -318,14 +394,22 @@ def train_evaluate_models(start_dir, action_to_take):
                 "protvec", "unirep", "fair_esm"]:
             test_results_dict[data_type + "_BON"] = eval_train_test(start_dir, data_type, 
                     num_epochs=40, model_type = "BON")
+
         if alternate_encodings:
-            #Performance for ablang improves very slightly with a larger number of
-            #epochs, but only very slightly. Nonetheless, we use 60 epochs here to
-            #give ablang "the benefit of the doubt"
+            #Ablang requires more iterations for convergence (although the improvement
+            #in performance going from 40 epochs to 60 is very slight, almost negligible)
             test_results_dict["ablang_BON"] = eval_train_test(start_dir, "ablang",
                     num_epochs=60, model_type = "BON")
             test_results_dict["ablang_FCNN"] = eval_train_test(start_dir, "ablang", 
                     num_epochs=60, model_type = "FCNN")
+            #Antiberty performed horribly, but modifying some of the hyperparameters (more
+            #epochs, less dropout) didn't seem to help.
+            test_results_dict["antiberty_BON"] = eval_train_test(start_dir, "antiberty",
+                    num_epochs=40, model_type = "BATCHED_BON")
+            test_results_dict["antiberty_FCNN"] = eval_train_test(start_dir, "antiberty", 
+                    num_epochs=40, model_type = "BATCHED_FCNN", dropout = 0.0)
+
+
         for data_type in ["adapted", "onehot", "unirep", "fair_esm", "protvec"]:
             test_results_dict[data_type + "FCNN"] = eval_train_test(start_dir, data_type, 
                     num_epochs=40, model_type = "FCNN")
@@ -342,6 +426,7 @@ def train_evaluate_models(start_dir, action_to_take):
                 outf.write(",")
                 outf.write(",".join([str(k) for k in test_results_dict[key]]))
                 outf.write("\n")
+
     elif action_to_take == "train_final_model":
         os.chdir(os.path.join(start_dir, "results_and_resources", "trained_models"))
         if "atezolizumab_varbayes_model.ptc" in os.listdir():
