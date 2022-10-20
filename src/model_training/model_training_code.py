@@ -18,6 +18,7 @@ from sklearn.ensemble import RandomForestClassifier
 from ..utilities.model_data_loader import load_model, save_model, load_data
 from ..model_code.traditional_nn_classification import fcnn_classifier as FCNN
 from ..model_code.variational_Bayes_ordinal_reg import bayes_ordinal_nn as BON
+from ..model_code.variational_Bayes_ordinal_BATCHED import batched_bayes_ordinal_nn as BATCHED_BON
 
 
 #TODO: Move full_wt_seq and aas to a constants file.
@@ -202,20 +203,24 @@ def eval_train_test(start_dir, data_type, num_epochs, model_type,
             useful for trastuzumab, where we have to calculate some additional
             properties aside from MCC.
     """
-    trainx, trainy, testx, testy = load_data(start_dir, data_type)
-    if trainx is None:
-        raise ValueError("The data type selected by model_training_code "
+    if data_type != "antiberty":
+        trainx, trainy, testx, testy = load_data(start_dir, data_type)
+        if trainx is None:
+            raise ValueError("The data type selected by model_training_code "
                 "has not yet been generated.")
-    #The autoencoder-generated data is flattened from a 3d tensor to a matrix.
-    #All other data types are already "flat".
-    if len(trainx.size()) ==3:
-        trainx = trainx.flatten(1,-1)
-        testx = testx.flatten(1,-1)
-    #The FCNN class does not auto-scale the data unlike BON so we do that here.
-    #Very important obviously that we not try to scale onehot data...
-    if model_type == "FCNN" and data_type != "onehot":
-        testx = (testx - torch.mean(trainx, dim=0).unsqueeze(0)) / torch.std(trainx, dim=0).unsqueeze(0)
-        trainx = (trainx - torch.mean(trainx, dim=0).unsqueeze(0)) / torch.std(trainx, dim=0).unsqueeze(0)
+        #The autoencoder-generated data is flattened from a 3d tensor to a matrix.
+        #All other data types are already "flat".
+        if len(trainx.size()) ==3:
+            trainx = trainx.flatten(1,-1)
+            testx = testx.flatten(1,-1)
+        #The FCNN class does not auto-scale the data unlike BON so we do that here.
+        #Very important obviously that we not try to scale onehot data...
+        if model_type == "FCNN" and data_type != "onehot":
+            testx = (testx - torch.mean(trainx, dim=0).unsqueeze(0)) / torch.std(trainx, dim=0).unsqueeze(0)
+            trainx = (trainx - torch.mean(trainx, dim=0).unsqueeze(0)) / torch.std(trainx, dim=0).unsqueeze(0)
+    else:
+        pass
+
 
     model = load_model(start_dir,
             f"{data_type}_trainset_only_{model_type}_model.ptc",
@@ -229,6 +234,13 @@ def eval_train_test(start_dir, data_type, num_epochs, model_type,
         print("Model for data type %s not found...will train."%data_type)
         if model_type == "BON":
             model = BON(input_dim=trainx.size()[1], num_categories = trainy.shape[1] - 1)
+            _ = model.trainmod(trainx, trainy,
+                    epochs=num_epochs, scale_data=scale_data, random_seed=0,
+                    num_samples=10)
+            save_model(start_dir, "%s_trainset_only_%s_model.ptc"%(data_type, model_type),
+                                model)
+        elif model_type == "BATCHED_BON":
+            model = BATCHED_BON(input_dim=trainx.size()[1], num_categories = trainy.shape[1] - 1)
             _ = model.trainmod(trainx, trainy,
                     epochs=num_epochs, scale_data=scale_data, random_seed=0,
                     num_samples=10)
@@ -288,6 +300,7 @@ def train_evaluate_models(start_dir, action_to_take):
     fnames = os.listdir()
     #This is a little...clunky, but because of the way the pipeline is set up, we have to encode the
     #data using a variety of different schemes and should make sure all are present before proceeding.
+    alternate_encodings = False
     for expected_fname in ["adapted_testx.pt", "adapted_trainx.pt", "nonadapted_testx.pt",
             "nonadapted_trainx.pt", "onehot_testx.pt", "onehot_trainx.pt", "protvec_testx.pt",
             "protvec_trainx.pt", "testy.pt", "trainy.pt", "unirep_testx.pt", "unirep_testy.pt",
@@ -296,12 +309,23 @@ def train_evaluate_models(start_dir, action_to_take):
             print("The data has not been encoded using all of the expected encoding types. This "
                     "step is required before train test evaluation.")
             return
+    if "ablang_trainx.pt" in fnames:
+        alternate_encodings = True
+
     if action_to_take == "traintest_eval":
         test_results_dict = dict()
         for data_type in ["adapted", "nonadapted", "onehot",
                 "protvec", "unirep", "fair_esm"]:
             test_results_dict[data_type + "_BON"] = eval_train_test(start_dir, data_type, 
                     num_epochs=40, model_type = "BON")
+        if alternate_encodings:
+            #Performance for ablang improves very slightly with a larger number of
+            #epochs, but only very slightly. Nonetheless, we use 60 epochs here to
+            #give ablang "the benefit of the doubt"
+            test_results_dict["ablang_BON"] = eval_train_test(start_dir, "ablang",
+                    num_epochs=60, model_type = "BON")
+            test_results_dict["ablang_FCNN"] = eval_train_test(start_dir, "ablang", 
+                    num_epochs=60, model_type = "FCNN")
         for data_type in ["adapted", "onehot", "unirep", "fair_esm", "protvec"]:
             test_results_dict[data_type + "FCNN"] = eval_train_test(start_dir, data_type, 
                     num_epochs=40, model_type = "FCNN")

@@ -14,6 +14,8 @@ from ..model_code.task_adapted_autoencoder import TaskAdaptedAutoencoder as TAE
 from ..model_code.unadapted_autoencoder import UnadaptedAutoencoder as UAE
 from ..model_code import task_adapted_ae_linlayer_subsampled
 from ..model_code.task_adapted_ae_linlayer_subsampled import TaskAdaptedAeLinlayerSampled
+from ..model_code.variational_Bayes_ordinal_BATCHED import batched_bayes_ordinal_nn as BATCHED_BON
+
 
 #A list of numbered positions for Chothia antibody sequence numbering.
 chothia_list = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11',
@@ -103,6 +105,15 @@ def load_model(start_dir, model_filename, model_type):
             else:
                 model = BON(input_dim = input_dim)
             model.load_state_dict(model_state_dict)
+        elif model_type == "BATCHED_BON":
+            input_dim = model_state_dict["n1.weight_means"].size()[0]
+            num_categories = model_state_dict["output_layer.fixed_thresh"].shape[0] + 1
+            #This is a hack for backwards compatibility. TODO: Update this
+            if num_categories == 2:
+                model = BATCHED_BON(input_dim = input_dim, num_categories = num_categories)
+            else:
+                model = BATCHED_BON(input_dim = input_dim)
+            model.load_state_dict(model_state_dict)
         elif model_type == "adapted":
             model = TAE()
             model.load_state_dict(model_state_dict)
@@ -179,7 +190,7 @@ def load_data(start_dir, data_type):
         if raw_file not in os.listdir():
             os.chdir(start_dir)
             return [None, None, None, None]
-        data_files.append(torch.load(raw_file))
+        data_files.append(torch.load(raw_file).float())
 
     os.chdir(start_dir)
     return data_files
