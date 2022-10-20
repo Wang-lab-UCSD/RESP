@@ -31,7 +31,7 @@ aas = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P',
 wildtype = ('EVQLVESGGGLVQPGGSLRLSCAASGFTFSDSWIHWVRQAPGKGLE'
             'WVAWISPYGGSTYYADSVKGRFTISADTSKNTAYLQMNSLRAEDTAVYYCARRHWPGGFDYWGQGTLVTVSS')
 
-def one_hot_encode(start_dir, position_dict, unused_positions):
+def one_hot_encode(start_dir, position_dict, unused_positions, return_unencoded_seqs = False):
     """This key function converts RH01, RH02, RH03 to one-hot encoded Chothia numbered
     sequences and train-test splits them. The y-tensors are shared among all data types
     and contain 4 columns. The first two are one-hot encoded to indicate whether
@@ -75,6 +75,7 @@ def one_hot_encode(start_dir, position_dict, unused_positions):
     print("%s seqs with unexpected mutations"%unexpected_mutation)
 
     os.chdir(start_dir)
+
     x, y = [], []
     for key in seqdict:
         x_array = np.zeros((1,132,21))
@@ -93,9 +94,26 @@ def one_hot_encode(start_dir, position_dict, unused_positions):
         y_array[-2] = cat
         if sorted_frequency[-1] > sorted_frequency[-2]:
             y.append(y_array)
-            x.append(x_array)
+            if return_unencoded_seqs:
+                x.append(key)
+            else:
+                x.append(x_array)
         else:
             unclear_category += 1
+
+    if return_unencoded_seqs:
+        y = np.stack(y)
+        np.random.seed(0)
+        indices = np.random.choice(y.shape[0], y.shape[0], replace=False)
+        y = torch.from_numpy(y[indices,:])
+        x = [x[i] for i in indices.tolist()]
+        trainx = x[0:int(0.8*y.shape[0])]
+        trainy = y[0:int(0.8*y.shape[0]),:]
+
+        testx = x[int(0.8*y.shape[0]):]
+        testy = y[int(0.8*y.shape[0]):, :]
+        return trainx, trainy, testx, testy
+
     x, y = np.vstack(x), np.stack(y)
     print('full dataset size: %s,%s'%(x.shape[0], x.shape[1]))
     print("%s unclear category"%unclear_category)
@@ -109,6 +127,7 @@ def one_hot_encode(start_dir, position_dict, unused_positions):
     testx = x[int(0.8*y.shape[0]):, :]
     testy = y[int(0.8*y.shape[0]):, :]
     return trainx, trainy, testx, testy
+
 
 def encode_protvec(start_dir, trainx, testx):
     """This function is a wrapper for protvec_encode_single_dataset and is
@@ -209,6 +228,9 @@ def sequence_encoding_wrapper(start_dir):
     os.chdir(start_dir)
     adapt_model = load_model(start_dir, "TaskAdapted_Autoencoder.ptc", "adapted")
     nonadapt_model = load_model(start_dir, "Unadapted_Autoencoder.ptc", "nonadapted")
+    s10_model = load_model(start_dir, "TaskAdapted_Autoencoder_subsample0.1.ptc", "subsample")
+    s25_model = load_model(start_dir, "TaskAdapted_Autoencoder_subsample0.25.ptc", "subsample")
+    s50_model = load_model(start_dir, "TaskAdapted_Autoencoder_subsample0.5.ptc", "subsample")
 
     position_dict, unused_positions = gen_anarci_dict(start_dir)
     trainx, trainy, testx, testy = load_data(start_dir, "onehot")
@@ -238,6 +260,18 @@ def sequence_encoding_wrapper(start_dir):
     if "rh02_rh03_prob_distribution.npy" not in os.listdir():
         print("Now calculating marginal aa probabilities...")
         get_aa_distribution(position_dict, unused_positions)
+    encoded_data = load_data(start_dir, "s10")
+    if encoded_data[0] is None:
+        print("Now running the subsampled s10 autoencoder...")
+        run_autoencoder(start_dir, trainx, testx, s10_model, "s10")
+    encoded_data = load_data(start_dir, "s25")
+    if encoded_data[0] is None:
+        print("Now running the subsampled s25 autoencoder...")
+        run_autoencoder(start_dir, trainx, testx, s25_model, "s25")
+    encoded_data = load_data(start_dir, "s50")
+    if encoded_data[0] is None:
+        print("Now running the subsampled s50 autoencoder...")
+        run_autoencoder(start_dir, trainx, testx, s50_model, "s50")
     print("All encodings complete except for UniRep")
     os.chdir(start_dir)
 

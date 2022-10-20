@@ -12,6 +12,8 @@ from ..model_code.traditional_nn_classification import fcnn_classifier as FCNN
 from ..model_code.variational_Bayes_ordinal_reg import bayes_ordinal_nn as BON
 from ..model_code.task_adapted_autoencoder import TaskAdaptedAutoencoder as TAE
 from ..model_code.unadapted_autoencoder import UnadaptedAutoencoder as UAE
+from ..model_code import task_adapted_ae_linlayer_subsampled
+from ..model_code.task_adapted_ae_linlayer_subsampled import TaskAdaptedAeLinlayerSampled
 
 #A list of numbered positions for Chothia antibody sequence numbering.
 chothia_list = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11',
@@ -90,7 +92,7 @@ def load_model(start_dir, model_filename, model_type):
                 model = pickle.load(inf)
             os.chdir(start_dir)
             return model
-        
+
         model_state_dict = torch.load(model_filename)
         if model_type == "BON":
             input_dim = model_state_dict["n1.weight_means"].size()[0]
@@ -110,6 +112,9 @@ def load_model(start_dir, model_filename, model_type):
         elif model_type == "FCNN":
             input_dim = model_state_dict["n1.weight"].size()[1]
             model = FCNN(input_dim=input_dim)
+            model.load_state_dict(model_state_dict)
+        elif model_type == "subsample":
+            model = TaskAdaptedAeLinlayerSampled()
             model.load_state_dict(model_state_dict)
         else:
             raise ValueError("Unrecognized model type supplied to Utilities.")
