@@ -228,12 +228,13 @@ def sequence_encoding_wrapper(start_dir):
     os.chdir(start_dir)
     adapt_model = load_model(start_dir, "TaskAdapted_Autoencoder.ptc", "adapted")
     nonadapt_model = load_model(start_dir, "Unadapted_Autoencoder.ptc", "nonadapted")
-    s10_model = load_model(start_dir, "TaskAdapted_Autoencoder_subsample0.1.ptc", "subsample")
-    s25_model = load_model(start_dir, "TaskAdapted_Autoencoder_subsample0.25.ptc", "subsample")
-    s50_model = load_model(start_dir, "TaskAdapted_Autoencoder_subsample0.5.ptc", "subsample")
+    s10_model = load_model(start_dir, "Subsample0.1_TaskAdapted_Autoencoder.ptc", "subsample")
+    s25_model = load_model(start_dir, "Subsample0.25_TaskAdapted_Autoencoder.ptc", "subsample")
+    s50_model = load_model(start_dir, "Subsample0.5_TaskAdapted_Autoencoder.ptc", "subsample")
 
     position_dict, unused_positions = gen_anarci_dict(start_dir)
     trainx, trainy, testx, testy = load_data(start_dir, "onehot")
+
     if trainx is None:
         print("Now one-hot encoding the data...")
         trainx, trainy, testx, testy = one_hot_encode(start_dir, position_dict, 
@@ -260,14 +261,17 @@ def sequence_encoding_wrapper(start_dir):
     if "rh02_rh03_prob_distribution.npy" not in os.listdir():
         print("Now calculating marginal aa probabilities...")
         get_aa_distribution(position_dict, unused_positions)
+
     encoded_data = load_data(start_dir, "s10")
     if encoded_data[0] is None:
         print("Now running the subsampled s10 autoencoder...")
         run_autoencoder(start_dir, trainx, testx, s10_model, "s10")
+
     encoded_data = load_data(start_dir, "s25")
     if encoded_data[0] is None:
         print("Now running the subsampled s25 autoencoder...")
         run_autoencoder(start_dir, trainx, testx, s25_model, "s25")
+
     encoded_data = load_data(start_dir, "s50")
     if encoded_data[0] is None:
         print("Now running the subsampled s50 autoencoder...")

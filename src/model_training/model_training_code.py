@@ -390,7 +390,7 @@ def train_evaluate_models(start_dir, action_to_take):
 
     if action_to_take == "traintest_eval":
         test_results_dict = dict()
-        for data_type in ["adapted", "nonadapted", "onehot",
+        for data_type in ["s10", "s25", "s50", "adapted", "nonadapted", "onehot",
                 "protvec", "unirep", "fair_esm"]:
             test_results_dict[data_type + "_BON"] = eval_train_test(start_dir, data_type, 
                     num_epochs=40, model_type = "BON")
@@ -410,7 +410,7 @@ def train_evaluate_models(start_dir, action_to_take):
                     num_epochs=40, model_type = "BATCHED_FCNN", dropout = 0.0)
 
 
-        for data_type in ["adapted", "onehot", "unirep", "fair_esm", "protvec"]:
+        for data_type in ["s10", "s25", "s50", "adapted", "onehot", "unirep", "fair_esm", "protvec"]:
             test_results_dict[data_type + "FCNN"] = eval_train_test(start_dir, data_type, 
                     num_epochs=40, model_type = "FCNN")
         test_results_dict["adapted_RF"] = eval_train_test(start_dir, "adapted", 

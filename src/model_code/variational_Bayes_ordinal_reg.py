@@ -127,7 +127,7 @@ class Output_Layer(torch.nn.Module):
         torch.manual_seed(123)
         self.register_buffer("pi2log", torch.log(torch.tensor([2.0*3.1415927410125732])) )
         fixed_thresh = [-num_outputs + 1.0]
-        fixed_thresh += [fixed_thresh[0] + i * 2.0 for i in range(num_outputs - 1)]
+        fixed_thresh += [fixed_thresh[0] + i * 2.0 for i in range(1, num_outputs)]
         self.register_buffer("fixed_thresh", torch.tensor(fixed_thresh))
         #Not currently used
         self.thresh_means = torch.nn.Parameter(torch.Tensor([-1.0,1.0]))
