@@ -223,7 +223,7 @@ def eval_train_test(start_dir, data_type, num_epochs, model_type,
             useful for trastuzumab, where we have to calculate some additional
             properties aside from MCC.
     """
-    if data_type != "antiberty":
+    if data_type != "antiberty_full":
         trainx, trainy, testx, testy = load_data(start_dir, data_type)
         if trainx is None:
             raise ValueError("The data type selected by model_training_code "
@@ -402,12 +402,10 @@ def train_evaluate_models(start_dir, action_to_take):
                     num_epochs=60, model_type = "BON")
             test_results_dict["ablang_FCNN"] = eval_train_test(start_dir, "ablang", 
                     num_epochs=60, model_type = "FCNN")
-            #Antiberty performed horribly, but modifying some of the hyperparameters (more
-            #epochs, less dropout) didn't seem to help.
             test_results_dict["antiberty_BON"] = eval_train_test(start_dir, "antiberty",
-                    num_epochs=40, model_type = "BATCHED_BON")
+                    num_epochs=60, model_type = "BON")
             test_results_dict["antiberty_FCNN"] = eval_train_test(start_dir, "antiberty", 
-                    num_epochs=40, model_type = "BATCHED_FCNN", dropout = 0.0)
+                    num_epochs=60, model_type = "FCNN", dropout = 0.25)
 
 
         for data_type in ["s10", "s25", "s50", "adapted", "onehot", "unirep", "fair_esm", "protvec"]:

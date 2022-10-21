@@ -21,6 +21,9 @@ def gen_arg_parser():
             "Encode the raw data using ABLang.")
     parser.add_argument("--antibertyencode", action="store_true", help=
             "Encode the raw data using Antiberty.")
+    parser.add_argument("--antibertyfull", action="store_true", help=
+            "Encode the raw data using Antiberty, but without averaging "
+            "over tokens.")
     return parser
 
 def main():
@@ -43,6 +46,8 @@ def main():
         ablang_encode(start_dir)
     if args.antibertyencode:
         antiberty_encode(start_dir)
+    if args.antibertyfull:
+        antiberty_encode(start_dir, full = True)
 
 if __name__ == "__main__":
     main()

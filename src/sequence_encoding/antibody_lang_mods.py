@@ -25,7 +25,7 @@ wildtype = ('EVQLVESGGGLVQPGGSLRLSCAASGFTFSDSWIHWVRQAPGKGLE'
             'WVAWISPYGGSTYYADSVKGRFTISADTSKNTAYLQMNSLRAEDTAVYYCARRHWPGGFDYWGQGTLVTVSS')
 
 
-def antiberty_encode(start_dir):
+def antiberty_encode(start_dir, full = False):
     """Encodes the sequences using the AntiBertY model."""
     os.chdir(os.path.join(start_dir, "encoded_data"))
     #This is a little clunky,but unfortunately now baked into the way the pipeline is set up.
@@ -41,9 +41,35 @@ def antiberty_encode(start_dir):
 
     trainx, trainy, testx, testy = one_hot_encode(start_dir, position_dict, unused_positions,
             return_unencoded_seqs = True)
-    antiberty_embed_seqgroup(trainx, trainy, start_dir, "train")
-    antiberty_embed_seqgroup(testx, testy, start_dir, "test")
+    if full:
+        antiberty_embed_seqgroup(trainx, trainy, start_dir, "train")
+        antiberty_embed_seqgroup(testx, testy, start_dir, "test")
+    else:
+        antiberty_embed_avg_seqgroup(trainx, trainy, start_dir, "train")
+        antiberty_embed_avg_seqgroup(testx, testy, start_dir, "test")
     os.chdir(start_dir)
+
+
+def antiberty_embed_avg_seqgroup(seqs, ydata, start_dir, output_name):
+    igfold = IgFoldRunner()
+    sequences = {"H":seqs[0]}
+    os.chdir(os.path.join(start_dir, "encoded_data"))
+
+    embeds, ysubset = [], []
+    for i, seq in enumerate(seqs):
+        sequences["H"] = seq
+        with torch.no_grad():
+            embed = igfold.embed(sequences = sequences).bert_embs.detach().cpu()
+        embeds.append(torch.mean(embed, dim=1))
+        ysubset.append(ydata[i:i+1,:])
+        torch.cuda.empty_cache()
+        if i % 5000 == 0:
+            print(f"{i} complete.\n\n\n")
+    embeds = torch.cat(embeds, dim=0)
+    torch.save(embeds, f"antiberty_{output_name}x.pt")
+    torch.save(ysubset, f"antiberty_{output_name}y.pt")
+
+
 
 
 def antiberty_embed_seqgroup(seqs, ydata, start_dir, output_name):
@@ -57,10 +83,11 @@ def antiberty_embed_seqgroup(seqs, ydata, start_dir, output_name):
     batchnum, embeds, ysubset = 0, [], []
     for i, seq in enumerate(seqs):
         sequences["H"] = seq
-        embeds.append(igfold.embed(sequences = sequences).bert_embs.cpu())
+        with torch.no_grad():
+            embeds.append(igfold.embed(sequences = sequences).bert_embs.detach().cpu())
         ysubset.append(ydata[i:i+1,:])
         torch.cuda.empty_cache()
-        if len(embeds) > 100:
+        if len(embeds) >= 200:
             embeds, ysubset = save_antiberty_batch(embeds, ysubset,
                     batchnum, output_name)
             batchnum += 1

@@ -12,16 +12,21 @@ hyperparameters had been selected.'''
 
 #Author: Jonathan Parkinson <jlparkinson1@gmail.com>
 
-import os, sys, numpy as np, torch
-from ..utilities.model_data_loader import load_data
+import time
+import os
+import sys
+import numpy as np
+import torch
+from ..utilities.model_data_loader import load_data, get_antiberty_file_list
 from torch.utils.data import random_split
 from sklearn.model_selection import KFold
 from sklearn.metrics import matthews_corrcoef as mcc, roc_auc_score
 from sklearn.ensemble import RandomForestClassifier
 from ..model_code.traditional_nn_classification import fcnn_classifier as FCNN
 from ..model_code.variational_Bayes_ordinal_reg import bayes_ordinal_nn as BON
+from ..model_code.variational_Bayes_ordinal_BATCHED import batched_bayes_ordinal_nn as BATCHED_BON
+from ..model_code.batched_trad_nn_classification import batched_fcnn_classifier as BATCHED_FCNN
 from sklearn.model_selection import KFold
-import time
 
 #TODO: Move full_wt_seq and aas to a constants file.
 full_wt_seq = ('EVQLVESGGGLVQPGGSLRLSCAASGFTFSD--SWIHWVRQAPGKGLEWVAWISP--'
@@ -56,7 +61,22 @@ def get_class_weights(y, as_dict = False):
     return {0:n_instances[0], 1:n_instances[1], 2:n_instances[2]}
 
 
-def score_cv(start_dir, data_type, num_epochs, model_type):
+def get_batched_class_weights(yfiles):
+    """This function is used to generate class weights for the batched fully
+    connected classifier.
+
+    Args:
+        yfiles (list): A list of the y data files.
+
+    Returns:
+        class_weights: A tensor.
+    """
+    classes = [torch.load(yfile) for yfile in yfiles]
+    classes = torch.cat(classes, dim=0)
+    return get_class_weights(classes)
+
+
+def score_cv(start_dir, data_type, num_epochs, model_type, dropout = 0.2):
     """This function builds the specified model type on the specified encoding
     type for each split in a 5x CV on the training set only.
 
@@ -113,7 +133,7 @@ def score_cv(start_dir, data_type, num_epochs, model_type):
                 xval = (xval - torch.mean(xtrain, dim=0).unsqueeze(0)) / torch.std(xtrain, dim=0).unsqueeze(0)
                 xtrain = (xtrain - torch.mean(xtrain, dim=0).unsqueeze(0)) / torch.std(xtrain, dim=0).unsqueeze(0)
             class_weights = get_class_weights(ytrain)
-            model = FCNN(dropout = 0.2, input_dim = xtrain.size()[1])
+            model = FCNN(dropout = dropout, input_dim = xtrain.size()[1])
             losses = model.trainmod(xtrain, ytrain, epochs=num_epochs, 
                     class_weights = class_weights, lr=0.005)
             valprobs, valpreds = model.predict(xval)
@@ -140,6 +160,92 @@ def score_cv(start_dir, data_type, num_epochs, model_type):
     return np.mean(cv_mccs), np.std(cv_mccs, ddof=1), np.mean(cv_aucs), np.std(cv_aucs, ddof=1)
 
 
+
+def batched_score_cv(start_dir, data_type, num_epochs, model_type):
+    """This function is similar to score_cv, but is intended only for datasets
+    too large to load to memory (e.g. antiberty).
+
+    Args:
+        start_dir (str): A path to the project directory.
+        data_type (str): The type of data (e.g. one hot encoded etc).
+        num_epochs (int): The number of training epochs.
+        model_type (str): The type of model (e.g. fully connected etc).
+
+    Returns:
+        mean_MCC (float): The matthews corrcoef.
+        MCC_std (float): The standard deviation on matthews corrcoef.
+        mean_auc (float): The AUC-ROC.
+        auc_std (float): The standard deviation on AUC-ROC.
+    """
+    xfiles, _, yfiles, _ = get_antiberty_file_list(start_dir)
+
+    print("*******\n5x CV in progress for %s using %s"%(data_type, model_type))
+    rng = np.random.default_rng(123)
+    idx = rng.permutation(len(xfiles))
+    indices = np.split(idx, 5)
+    cv_mccs, cv_aucs = [], []
+    for i, tti in enumerate(indices):
+        valx, valy = [xfiles[i] for i in tti.tolist()], \
+                [yfiles[i] for i in tti.tolist()]
+        tri = [indices[j] for j in range(len(indices)) if j != i]
+        tri = np.concatenate(tri)
+        trainx, trainy = [xfiles[i] for i in tri.tolist()], \
+                [yfiles[i] for i in tri.tolist()]
+        scale_data = True
+        #Very important not to try to scale onehot data...
+        if data_type == "onehot":
+            scale_data = False
+
+        if model_type == "BON":
+            xinit, yinit = torch.load(trainx[0]), torch.load(trainy[0])
+            xinit = torch.flatten(xinit, start_dim=1)
+            model = BATCHED_BON(input_dim = xinit.size()[1],
+                    num_categories = yinit.shape[1] - 1)
+            _ = model.trainmod(trainx, trainy,
+                    epochs=num_epochs, scale_data=scale_data,
+                    random_seed=0, num_samples=10)
+            yval, valpreds, valprobs = [], [], []
+            for xfile, yfile in zip(valx, valy):
+                x, y = torch.load(xfile), torch.load(yfile)
+                yval.append(y)
+                x = torch.flatten(x, start_dim=1)
+                valpreds.append(model.map_categorize(x))
+                valprobs.append(model.predict(x))
+        elif model_type == "FCNN":
+            class_weights = get_batched_class_weights(trainy)
+            xinit, yinit = torch.load(trainx[0]), torch.load(trainy[0])
+            xinit = torch.flatten(torch.load(trainx[0]), start_dim=1)
+            model = BATCHED_FCNN(dropout = dropout, input_dim = xinit.size()[1])
+            losses = model.trainmod(trainx, trainy,
+                    epochs=num_epochs, class_weights = class_weights,
+                    lr=0.005)
+            yval, valpreds, valprobs = [], [], []
+            for xfile, yfile in zip(valx, valy):
+                x, y = torch.load(xfile), torch.load(yfile)
+                yval.append(y)
+                x = torch.flatten(x, start_dim=1)
+                probs, preds = model.predict(x)
+                valpreds.append(preds)
+                valprobs.append(probs)
+
+        yval = torch.cat(yval, dim=0)
+        valpreds, valprobs = np.concatenate(valpreds), \
+                np.concatenate(valprobs, axis=0)
+        cv_mccs.append(mcc(yval[:,2].numpy(), valpreds))
+        yval = yval.numpy()[:,2]
+        yval[yval==1] = 0
+        yval[yval==2] = 1
+        cv_aucs.append(roc_auc_score(yval, valprobs[:,-1]))
+        print("MCC: %s"%cv_mccs[-1])
+        print("AUC: %s"%cv_aucs[-1])
+        #Take this out if you don't want it -- I like to have a pause
+        #between iterations
+        time.sleep(10)
+    return np.mean(cv_mccs), np.std(cv_mccs, ddof=1), np.mean(cv_aucs), np.std(cv_aucs, ddof=1)
+
+
+
+
 def run_all_5x_cvs(start_dir):
     """Convenience function for running 5x CVs for all data types
         and models at the same time."""
@@ -158,29 +264,39 @@ def run_all_5x_cvs(start_dir):
     cv_results_dict = dict()
     #Skipping fair_esm since results were truly dismal. If you want to add it in
     #please do, but it is expensive and performs very badly.
-    cv_results_dict["adapted_FCNN"] = score_cv(start_dir, "adapted",
-                    num_epochs=45, model_type = "FCNN")
-    cv_results_dict["onehot_FCNN"] = score_cv(start_dir, "onehot",
-                    num_epochs=45, model_type = "FCNN")
-    cv_results_dict["unirep_FCNN"] = score_cv(start_dir, "unirep",
-                    num_epochs=45, model_type = "FCNN")
-    cv_results_dict["protvec_FCNN"] = score_cv(start_dir, "protvec",
-                    num_epochs=45, model_type = "FCNN")
-    for data_type in ["adapted", "onehot", "protvec", "unirep"]:
-        cv_results_dict[data_type + "_BON"] = score_cv(start_dir, data_type,
-                    num_epochs=45, model_type = "BON")
-    cv_results_dict["adapted_RF"] = score_cv(start_dir, "adapted",
-                    num_epochs=0, model_type = "RF")
-    cv_results_dict["onehot_RF"] = score_cv(start_dir, "onehot",
-                    num_epochs=0, model_type = "RF")
+    #cv_results_dict["adapted_FCNN"] = score_cv(start_dir, "adapted",
+    #                num_epochs=45, model_type = "FCNN")
+    #cv_results_dict["onehot_FCNN"] = score_cv(start_dir, "onehot",
+    #                num_epochs=45, model_type = "FCNN")
+    #cv_results_dict["unirep_FCNN"] = score_cv(start_dir, "unirep",
+    #                num_epochs=45, model_type = "FCNN")
+    #cv_results_dict["protvec_FCNN"] = score_cv(start_dir, "protvec",
+    #                num_epochs=45, model_type = "FCNN")
+    cv_results_dict["ablang_FCNN"] = score_cv(start_dir, "ablang",
+                    num_epochs=60, model_type = "FCNN")
+    cv_results_dict["antiberty_FCNN"] = score_cv(start_dir, "antiberty",
+                    num_epochs=60, model_type = "FCNN", dropout = 0.25)
+    cv_results_dict["ablang" + "_BON"] = score_cv(start_dir, "ablang",
+                    num_epochs=60, model_type = "BON")
+    cv_results_dict["antiberty" + "_BON"] = score_cv(start_dir, "antiberty",
+                    num_epochs=60, model_type = "BON")
+    #for data_type in ["adapted", "onehot", "protvec", "unirep"]:
+    #    cv_results_dict[data_type + "_BON"] = score_cv(start_dir, data_type,
+    #                num_epochs=45, model_type = "BON")
+    #cv_results_dict["adapted_RF"] = score_cv(start_dir, "adapted",
+    #                num_epochs=0, model_type = "RF")
+    #cv_results_dict["onehot_RF"] = score_cv(start_dir, "onehot",
+    #                num_epochs=0, model_type = "RF")
     os.chdir(start_dir)
     os.chdir("results_and_resources")
-    with open("5x_CV_results.txt", "w+") as outf:
-        outf.write("Data type_model,Average MCC on 5x CV,Std dev,"
-            "Average AUC-ROC,Std dev\n")
+    if "5x_CV_results.txt" not in os.listdir():
+        with open("5x_CV_results.txt", "w+") as outf:
+            outf.write("Data type_model,Average MCC on 5x CV,Std dev,"
+                "Average AUC-ROC,Std dev\n")
+
+    with open("5x_CV_results.txt", "a+") as outf:
         for key in cv_results_dict:
             outf.write(key)
             outf.write(",")
             outf.write(",".join([str(k) for k in cv_results_dict[key]]))
             outf.write("\n")
-
