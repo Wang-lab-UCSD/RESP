@@ -259,10 +259,13 @@ def score_mutations(start_dir):
     position_dict, _ = gen_anarci_dict(start_dir)
 
     high_scoring_seqs = []
+    unique_mutations = set()
     for mutant in mutants:
-        positions = [int(s.split("[")[1].split("]")[0]) - 1 for s in
-                mutant.split(",")]
-        mutations = [s.split("]")[-1] for s in mutant.split(",")]
+        mutations, positions = [], []
+        for s in mutant.split(","):
+            mutations.append(s.split("]")[-1])
+            unique_mutations.add(s)
+            positions.append(int(s.split("[")[1].split("]")[0]) - 1)
         positions = [position_dict[position] for position in positions]
         high_scoring_seq = deepcopy(list(full_wt))
         for mutation, position in zip(mutations, positions):

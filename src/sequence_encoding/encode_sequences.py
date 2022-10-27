@@ -229,7 +229,7 @@ def sequence_encoding_wrapper(start_dir):
     adapt_model = load_model(start_dir, "TaskAdapted_Autoencoder.ptc", "adapted")
     nonadapt_model = load_model(start_dir, "Unadapted_Autoencoder.ptc", "nonadapted")
     s10_model = load_model(start_dir, "Subsample0.1_TaskAdapted_Autoencoder.ptc", "subsample")
-    s25_model = load_model(start_dir, "Subsample0.25_TaskAdapted_Autoencoder.ptc", "subsample")
+    s1_model = load_model(start_dir, "Subsample0.01_TaskAdapted_Autoencoder.ptc", "subsample")
     s50_model = load_model(start_dir, "Subsample0.5_TaskAdapted_Autoencoder.ptc", "subsample")
 
     position_dict, unused_positions = gen_anarci_dict(start_dir)
@@ -267,10 +267,10 @@ def sequence_encoding_wrapper(start_dir):
         print("Now running the subsampled s10 autoencoder...")
         run_autoencoder(start_dir, trainx, testx, s10_model, "s10")
 
-    encoded_data = load_data(start_dir, "s25")
+    encoded_data = load_data(start_dir, "s1")
     if encoded_data[0] is None:
-        print("Now running the subsampled s25 autoencoder...")
-        run_autoencoder(start_dir, trainx, testx, s25_model, "s25")
+        print("Now running the subsampled s1 autoencoder...")
+        run_autoencoder(start_dir, trainx, testx, s1_model, "s1")
 
     encoded_data = load_data(start_dir, "s50")
     if encoded_data[0] is None:

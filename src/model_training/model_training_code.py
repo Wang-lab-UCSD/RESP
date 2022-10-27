@@ -390,7 +390,7 @@ def train_evaluate_models(start_dir, action_to_take):
 
     if action_to_take == "traintest_eval":
         test_results_dict = dict()
-        for data_type in ["s10", "s25", "s50", "adapted", "nonadapted", "onehot",
+        for data_type in ["s1", "s10", "s50", "adapted", "nonadapted", "onehot",
                 "protvec", "unirep", "fair_esm"]:
             test_results_dict[data_type + "_BON"] = eval_train_test(start_dir, data_type, 
                     num_epochs=40, model_type = "BON")
@@ -408,7 +408,7 @@ def train_evaluate_models(start_dir, action_to_take):
                     num_epochs=60, model_type = "FCNN", dropout = 0.25)
 
 
-        for data_type in ["s10", "s25", "s50", "adapted", "onehot", "unirep", "fair_esm", "protvec"]:
+        for data_type in ["s1", "s10", "s50", "adapted", "onehot", "unirep", "fair_esm", "protvec"]:
             test_results_dict[data_type + "FCNN"] = eval_train_test(start_dir, data_type, 
                     num_epochs=40, model_type = "FCNN")
         test_results_dict["adapted_RF"] = eval_train_test(start_dir, "adapted", 
@@ -542,6 +542,9 @@ def score_trastuzumab(project_dir):
     sns.boxplot(x=mismatches, y=np.log(stdev), notch=True)
     plt.title("Model uncertainty for correct and incorrect test set predictions.")
     plt.ylabel("Log standard deviation")
+    plt.plot([0,0,1,1], [0.5, 0.75, 0.75, 0.5], lw=1.5, c="black")
+    plt.text( 0.5, 0.75, "****", ha="center", va="bottom",
+            color = "black")
     plt.savefig("Uncertainty_vs_pred.png", bbox_inches = "tight")
     plt.close()
 
