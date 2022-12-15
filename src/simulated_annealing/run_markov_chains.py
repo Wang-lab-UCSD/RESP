@@ -51,7 +51,7 @@ def run_annealing_chains(start_dir):
     for i in range(len(marks)):
         marks[i].run_chain(3000, seed=i)
         fig, ax = marks[i].plot_scores()
-        plt.savefig("Scores for chain %s"%i)
+        plt.savefig("Scores for chain %s.eps"%i, format="eps")
         plt.close()
         with open("markov_chain_scores.csv", "a") as fhandle:
             for j, score in enumerate(marks[i].scores):
@@ -186,8 +186,8 @@ def analyze_annealing_results(start_dir):
     for seq in clust2:
         for i, key_pos in enumerate(key_positions):
             clust2mat[aas.index(seq[key_pos]), i] += 1
-    clust2mat[clust2mat < 1] = np.nan
-    clust1mat[clust1mat < 1] = np.nan
+    #clust2mat[clust2mat < 1] = np.nan
+    #clust1mat[clust1mat < 1] = np.nan
     axis_labels = [f"{key_pos + 1}\n({position_dict[key_pos]})" for key_pos in 
                     key_positions]
     fig, (ax1, ax2) = plt.subplots(2, figsize=(6,12), sharex=True)
@@ -209,7 +209,7 @@ def analyze_annealing_results(start_dir):
     ax2.set_ylabel("Amino acid")
     ax1.set_title("Cluster 1 marginal distributions")
     ax2.set_title("Cluster 2 marginal distributions")
-    plt.savefig("Cluster marginal distributions.png")
+    plt.savefig("Cluster marginal distributions.eps", format="eps")
     plt.close()
 
     with open("cluster_marginal_distributions_source_data.csv", "w+") as fhandle:
