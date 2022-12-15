@@ -142,7 +142,7 @@ def plot_all_scores(start_dir):
     plt.title("Distribution of scores assigned by variational Bayesian\n"
             "ordinal regression vs experimentally determined\n"
             "binding category")
-    plt.savefig("Score_distribution.eps", format="eps")
+    plt.savefig("Score_distribution.pdf", format="pdf")
     plt.close()
 
     with open("Test_set_score_distribution.csv", "w+") as fhandle:

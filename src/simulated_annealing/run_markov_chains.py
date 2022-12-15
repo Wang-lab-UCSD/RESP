@@ -51,7 +51,7 @@ def run_annealing_chains(start_dir):
     for i in range(len(marks)):
         marks[i].run_chain(3000, seed=i)
         fig, ax = marks[i].plot_scores()
-        plt.savefig("Scores for chain %s.eps"%i, format="eps")
+        plt.savefig("Scores for chain %s.pdf"%i, format="pdf")
         plt.close()
         with open("markov_chain_scores.csv", "a") as fhandle:
             for j, score in enumerate(marks[i].scores):
@@ -195,12 +195,16 @@ def analyze_annealing_results(start_dir):
     im1 = ax1.imshow(clust1mat, cmap="Reds", aspect=0.5)
     ax1.set_yticks(np.arange(20))
     ax1.set_yticklabels(aas[:-1])
-    fig.colorbar(im1, ax=ax1)
+    cbar = fig.colorbar(im1, ax=ax1)
+    cbar.ax.get_yaxis().labelpad = 15
+    cbar.set_label("Number of sequences", rotation=270)
 
     im2 = ax2.imshow(clust2mat, cmap="Greens", aspect=0.5)
     ax2.set_yticks(np.arange(20))
     ax2.set_yticklabels(aas[:-1])
-    fig.colorbar(im2, ax=ax2)
+    cbar = fig.colorbar(im2, ax=ax2)
+    cbar.ax.get_yaxis().labelpad = 15
+    cbar.set_label("Number of sequences", rotation=270)
     
     ax2.set_xticks(np.arange(0,len(key_positions)))
     ax2.set_xticklabels(axis_labels)
@@ -209,7 +213,7 @@ def analyze_annealing_results(start_dir):
     ax2.set_ylabel("Amino acid")
     ax1.set_title("Cluster 1 marginal distributions")
     ax2.set_title("Cluster 2 marginal distributions")
-    plt.savefig("Cluster marginal distributions.eps", format="eps")
+    plt.savefig("Cluster marginal distributions.pdf", format="pdf")
     plt.close()
 
     with open("cluster_marginal_distributions_source_data.csv", "w+") as fhandle:
