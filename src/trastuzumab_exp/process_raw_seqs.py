@@ -87,13 +87,13 @@ def data_split_adj(Ag_pos, Ag_neg, fraction):
                  Ag_neg[int((data_size_neg*(1-fraction))):len(Ag_neg)]]
             )
     # Combine the positive and negative data frames
-    # Original authors neglected to supply a random seed here, fixed
+    # Original function did not supply a random seed here, fixed
     Ag_combined = pd.concat([Ag_pos1, Ag_neg1])
     #Ag_combined = Ag_combined.drop_duplicates(subset='AASeq')
     Ag_combined = Ag_combined.sample(frac=1, random_state=0).reset_index(drop=True)
 
     # 70%/30% training test data split
-    # Original authors neglected to supply a random seed here, fixed
+    # Original function did not supply a random seed here, fixed
     idx = np.arange(0, Ag_combined.shape[0])
     idx_train, idx_test = train_test_split(
         idx, stratify=Ag_combined['AgClass'], test_size=0.3,
@@ -101,7 +101,7 @@ def data_split_adj(Ag_pos, Ag_neg, fraction):
     )
     
     # 50%/50% test validation data split
-    # Original authors neglected to supply a random seed here, fixed
+    # Original function did not supply a random seed here, fixed
     idx2 = np.arange(0, idx_test.shape[0])
     idx_val, idx_test2 = train_test_split(
         idx2, stratify=Ag_combined.iloc[idx_test, :]['AgClass'], test_size=0.5,
