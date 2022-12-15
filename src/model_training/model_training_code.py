@@ -144,6 +144,12 @@ def plot_all_scores(start_dir):
             "binding category")
     plt.savefig("Score_distribution.png")
     plt.close()
+
+    with open("Test_set_score_distribution.csv", "w+") as fhandle:
+        fhandle.write("Category,ordinal_regression_score\n")
+        for label, score in zip(labels, xscores.tolist()):
+            fhandle.write(f"{label},{score}\n")
+
     os.chdir(start_dir)
 
 

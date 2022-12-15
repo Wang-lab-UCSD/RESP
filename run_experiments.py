@@ -19,6 +19,7 @@ from src.sequence_encoding.fair_esm_wrapper import fair_esm_wrapper
 from src.model_training.cv_scoring import run_all_5x_cvs
 from src.trastuzumab_exp.process_raw_seqs import encode_trastuzumab_seqs
 
+
 def gen_arg_parser():
     parser = argparse.ArgumentParser(description="Use this command line app "
             "to run / reproduce all of the key steps in the pipeline: "
@@ -77,6 +78,7 @@ def gen_arg_parser():
     parser.add_argument("--trastscore", action="store_true", help=
             "Score trastuzumab sequences selected for experimental eval.")
     return parser
+
 
 def main():
     """This is the entry point for all of the steps in the pipeline;

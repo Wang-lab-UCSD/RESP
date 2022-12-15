@@ -110,12 +110,14 @@ def score_cv(start_dir, data_type, num_epochs, model_type, dropout = 0.2):
     kf.get_n_splits(indices)
     cv_mccs = []
     cv_aucs = []
+
     for tri, tti in kf.split(indices):
         xtrain = trainx[torch.from_numpy(indices[tri]),:]
         xval = trainx[torch.from_numpy(indices[tti]),:]
         ytrain = trainy[torch.from_numpy(indices[tri]),:]
         yval = trainy[torch.from_numpy(indices[tti]),:]
         scale_data = True
+
         #Very important not to try to scale onehot data...
         if data_type == "onehot":
             scale_data = False
@@ -126,6 +128,7 @@ def score_cv(start_dir, data_type, num_epochs, model_type, dropout = 0.2):
                     num_samples=10)
             valpreds = model.map_categorize(xval)
             valprobs = model.map_predict(xval)
+
         elif model_type == "FCNN":
             if scale_data:
                 #The FCNN class does not auto-scale the data unlike BON so we do that here.
@@ -137,6 +140,7 @@ def score_cv(start_dir, data_type, num_epochs, model_type, dropout = 0.2):
             losses = model.trainmod(xtrain, ytrain, epochs=num_epochs, 
                     class_weights = class_weights, lr=0.005)
             valprobs, valpreds = model.predict(xval)
+
         elif model_type == "RF":
             class_weights = get_class_weights(ytrain, as_dict=True)
             model = RandomForestClassifier(n_estimators=500,
@@ -147,6 +151,7 @@ def score_cv(start_dir, data_type, num_epochs, model_type, dropout = 0.2):
                     sample_weight=ytrain.numpy()[:,-1])
             valpreds = model.predict(xval.numpy())
             valprobs = model.predict_proba(xval.numpy())
+
         cv_mccs.append(mcc(yval[:,2].numpy(), valpreds))
         yval = yval.numpy()[:,2]
         yval[yval==1] = 0
@@ -157,6 +162,7 @@ def score_cv(start_dir, data_type, num_epochs, model_type, dropout = 0.2):
         #Take this out if you don't want it -- I like to have a pause
         #between iterations
         time.sleep(10)
+
     return np.mean(cv_mccs), np.std(cv_mccs, ddof=1), np.mean(cv_aucs), np.std(cv_aucs, ddof=1)
 
 
@@ -184,6 +190,7 @@ def batched_score_cv(start_dir, data_type, num_epochs, model_type):
     idx = rng.permutation(len(xfiles))
     indices = np.split(idx, 5)
     cv_mccs, cv_aucs = [], []
+
     for i, tti in enumerate(indices):
         valx, valy = [xfiles[i] for i in tti.tolist()], \
                 [yfiles[i] for i in tti.tolist()]
@@ -264,14 +271,14 @@ def run_all_5x_cvs(start_dir):
     cv_results_dict = dict()
     #Skipping fair_esm since results were truly dismal. If you want to add it in
     #please do, but it is expensive and performs very badly.
-    #cv_results_dict["adapted_FCNN"] = score_cv(start_dir, "adapted",
-    #                num_epochs=45, model_type = "FCNN")
-    #cv_results_dict["onehot_FCNN"] = score_cv(start_dir, "onehot",
-    #                num_epochs=45, model_type = "FCNN")
-    #cv_results_dict["unirep_FCNN"] = score_cv(start_dir, "unirep",
-    #                num_epochs=45, model_type = "FCNN")
-    #cv_results_dict["protvec_FCNN"] = score_cv(start_dir, "protvec",
-    #                num_epochs=45, model_type = "FCNN")
+    cv_results_dict["adapted_FCNN"] = score_cv(start_dir, "adapted",
+                    num_epochs=45, model_type = "FCNN")
+    cv_results_dict["onehot_FCNN"] = score_cv(start_dir, "onehot",
+                    num_epochs=45, model_type = "FCNN")
+    cv_results_dict["unirep_FCNN"] = score_cv(start_dir, "unirep",
+                    num_epochs=45, model_type = "FCNN")
+    cv_results_dict["protvec_FCNN"] = score_cv(start_dir, "protvec",
+                    num_epochs=45, model_type = "FCNN")
     cv_results_dict["ablang_FCNN"] = score_cv(start_dir, "ablang",
                     num_epochs=60, model_type = "FCNN")
     cv_results_dict["antiberty_FCNN"] = score_cv(start_dir, "antiberty",
@@ -280,13 +287,13 @@ def run_all_5x_cvs(start_dir):
                     num_epochs=60, model_type = "BON")
     cv_results_dict["antiberty" + "_BON"] = score_cv(start_dir, "antiberty",
                     num_epochs=60, model_type = "BON")
-    #for data_type in ["adapted", "onehot", "protvec", "unirep"]:
-    #    cv_results_dict[data_type + "_BON"] = score_cv(start_dir, data_type,
-    #                num_epochs=45, model_type = "BON")
-    #cv_results_dict["adapted_RF"] = score_cv(start_dir, "adapted",
-    #                num_epochs=0, model_type = "RF")
-    #cv_results_dict["onehot_RF"] = score_cv(start_dir, "onehot",
-    #                num_epochs=0, model_type = "RF")
+    for data_type in ["adapted", "onehot", "protvec", "unirep"]:
+        cv_results_dict[data_type + "_BON"] = score_cv(start_dir, data_type,
+                    num_epochs=45, model_type = "BON")
+    cv_results_dict["adapted_RF"] = score_cv(start_dir, "adapted",
+                    num_epochs=0, model_type = "RF")
+    cv_results_dict["onehot_RF"] = score_cv(start_dir, "onehot",
+                    num_epochs=0, model_type = "RF")
     os.chdir(start_dir)
     os.chdir("results_and_resources")
     if "5x_CV_results.txt" not in os.listdir():

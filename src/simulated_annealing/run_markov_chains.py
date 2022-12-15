@@ -34,19 +34,28 @@ def run_annealing_chains(start_dir):
         print("The rh02_03 probability distribution was never generated. "
             "Please run the appropriate pipeline steps.")
         return
+
     os.chdir(os.path.join(start_dir, "results_and_resources", "simulated_annealing"))
     if "annealing_seqs_all_pos.txt" in os.listdir():
         print("Annealing results have already been saved.")
         os.chdir(start_dir)
         return
+
     marks = [MarkovChainDE(full_wt, prob_distro, start_dir,
                 cdronly=False) for i in range(10)]
     os.chdir(os.path.join("results_and_resources", "simulated_annealing"))
+
+    with open(f"markov_chain_scores.csv", "w+") as fhandle:
+        fhandle.write(f"Chain,iteration,score\n")
+    
     for i in range(len(marks)):
         marks[i].run_chain(3000, seed=i)
         fig, ax = marks[i].plot_scores()
         plt.savefig("Scores for chain %s"%i)
         plt.close()
+        with open("markov_chain_scores.csv", "a") as fhandle:
+            for j, score in enumerate(marks[i].scores):
+                fhandle.write(f"{i},{j},{score}\n")
 
     num_retained = 0
     retained_seqs = set()
@@ -65,11 +74,14 @@ def run_annealing_chains(start_dir):
 
 
 
-#This function analyzes the results of the simulated annealing experiments
-#to find final sequences for experimental evaluation.
 def analyze_annealing_results(start_dir):
+    """This function analyzes the results of the simulated annealing experiments
+    to find final sequences for experimental evaluation. A great deal of the code
+    here is dedicated to plotting the results."""
+
     os.chdir(os.path.join(start_dir, "encoded_data"))
     fnames = os.listdir()
+
     #As noted elsewhere, this is clunky but now unfortunately baked into
     #the pipeline. Check that all needed files are present before running.
     for fname in ["rh01_sequences.txt", "rh02_sequences.txt", "rh03_sequences.txt",
@@ -79,10 +91,12 @@ def analyze_annealing_results(start_dir):
                     "distro was never generated. Please run the appropriate "
                     "pipeline steps.")
             return
+
     position_dict, _ = gen_anarci_dict(start_dir)
     seqs, scores = load_markov_chain_seqs(start_dir)
     varbayes_mod = load_model(start_dir,
             "atezolizumab_varbayes_model.ptc", model_type="BON")
+
     #We create a MarkovChainDE object to make use of its handy built
     #in features for encoding all of the sequences we just re-loaded --
     #not in order to run another chain.
@@ -106,6 +120,7 @@ def analyze_annealing_results(start_dir):
         score_variability = score_variability.numpy()
 
     score_rsd = 100 * score_variability / scores
+
     #Why do we select the 50th percentile of scores with smallest rsd?
     #Why not 60th, or 40th? Ultimately deciding how many sequences to test
     #depends on time and budgetary constraints. The fewer sequences we
@@ -156,10 +171,12 @@ def analyze_annealing_results(start_dir):
             if temp_cluster_assignments[i] == 2]
     merged = clust1 + clust2
     key_positions = set()
+
     for seq in merged:
         for i in range(len(seq)):
             if seq[i] != shrunk_wt[i]:
                 key_positions.add(i)
+
     key_positions = sorted(list(key_positions))
     clust1mat = np.zeros((20, len(key_positions)))
     clust2mat = np.zeros((20, len(key_positions)))
@@ -195,6 +212,18 @@ def analyze_annealing_results(start_dir):
     plt.savefig("Cluster marginal distributions.png")
     plt.close()
 
+    with open("cluster_marginal_distributions_source_data.csv", "w+") as fhandle:
+        for i, cluster_mat in enumerate([clust1mat, clust2mat]):
+            fhandle.write(f"Source data for cluster {i+1} marginals plot\n,")
+            for key_pos in key_positions:
+                fhandle.write(f"{key_pos},")
+            fhandle.write("\n")
+            for j in range(cluster_mat.shape[0]):
+                fhandle.write(f"\n{aas[j]},")
+                for k in range(cluster_mat.shape[1]):
+                    fhandle.write(f"{cluster_mat[j,k]},")
+            fhandle.write("\n\n\n")
+
     #16 is based on inspection of the dendrogram the first time
     #this experiment was conducted -- and as discussed above, also
     #the need to get an appropriate number of sequences for experimental
@@ -216,7 +245,8 @@ def analyze_annealing_results(start_dir):
     if "Final_Selected_Sequences.txt" in os.listdir():
         print("Final selected sequences file has already been created!")
         return
-    outhandle = open("Final_Selected_Sequences.txt", "w+")
+
+    fhandle = open("Final_Selected_Sequences.txt", "w+")
     for seq_data in selected_seqs:
         seq = seq_data[0].replace("-", "")
         mutated_positions = []
@@ -232,8 +262,9 @@ def analyze_annealing_results(start_dir):
         outstring = (">score %s cluster %s   in_original_dataset %s    %s\n%s\n"%
                         (seq_data[1], seq_data[2], is_in_dataset, 
                         ",".join(mutated_positions), seq) )
-        outhandle.write(outstring)
-    outhandle.close()
+        fhandle.write(outstring)
+
+    fhandle.close()
     print("Final selected sequences written to file for experimental evaluation.")
 
 
@@ -341,4 +372,3 @@ def load_markov_chain_seqs(start_dir):
     scores = np.asarray([chainseqs[key] for key in seqs])
     os.chdir(start_dir)
     return seqs, scores
-
