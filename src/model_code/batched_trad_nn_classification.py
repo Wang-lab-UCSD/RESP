@@ -7,8 +7,6 @@ This class inerits from fcnn_classifier and is the same in all
 respects EXCEPT that it has been designed to work with data
 too large to load to memory (e.g. antiberty).'''
 
-#Author: Jonathan Parkinson <jlparkinson1@gmail.com>
-
 import os, torch, numpy as np, time
 import torch.nn.functional as F
 from .traditional_nn_classification import fcnn_classifier

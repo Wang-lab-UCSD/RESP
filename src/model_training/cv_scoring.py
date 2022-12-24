@@ -10,8 +10,6 @@ selection was done using this CV procedure; the train-test split was only
 performed once all the encoding schemes had been developed and model
 hyperparameters had been selected.'''
 
-#Author: Jonathan Parkinson <jlparkinson1@gmail.com>
-
 import time
 import os
 import sys

@@ -5,8 +5,6 @@ for generating dictionaries used for mapping input sequences to Chothia
 numbering -- crucial since the autoencoders were trained on Chothia-numbered
 input.'''
 
-#Author: Jonathan Parkinson <jlparkinson1@gmail.com>
-
 import torch, os, sys, pickle
 from ..model_code.traditional_nn_classification import fcnn_classifier as FCNN
 from ..model_code.variational_Bayes_ordinal_reg import bayes_ordinal_nn as BON

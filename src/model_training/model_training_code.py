@@ -3,12 +3,11 @@ training models on the training set only and evaluating them on the test
 set, building the final model, scoring all sequences and extracting the
 top 500, scoring the wild-type.'''
 
-#Author: Jonathan Parkinson <jlparkinson1@gmail.com>
-
 import os
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
+import pandas as pd
 import torch
 from scipy.stats import mannwhitneyu as MWU
 from sklearn.metrics import matthews_corrcoef as mcc
@@ -527,6 +526,10 @@ def score_trastuzumab(project_dir):
     plt.savefig("model_training_scores.png", bbox_inches = "tight")
     plt.close()
 
+    model_training_scores = {"Label":labels, "Model assigned score":train_scores}
+    model_training_scores = pd.DataFrame.from_dict(model_training_scores)
+    model_training_scores.to_csv("model_training_scores.csv", index=False)
+
     _ = plt.hist(score, label="Experimentally evaluated seqs")
     matching_x, matching_y = np.full((50),score[-1]), np.linspace(0, 10, 50)
     plt.plot(matching_x, matching_y, label="Trastuzumab_score")
@@ -536,7 +539,11 @@ def score_trastuzumab(project_dir):
     plt.legend()
     plt.savefig("model_exp_scores.png", bbox_inches = "tight")
     plt.close()
-    #Plot the score for trastuzumab
+
+    print(f"Trastuzumab score: {score[-1]}")
+    exp_scores = pd.DataFrame.from_dict({"Score":score})
+    exp_scores.to_csv("model_exp_scores.csv", index=False)
+
 
 
     testpreds = model.map_categorize(test_x)
@@ -553,6 +560,10 @@ def score_trastuzumab(project_dir):
             color = "black")
     plt.savefig("Uncertainty_vs_pred.png", bbox_inches = "tight")
     plt.close()
+
+    uncertainties = pd.DataFrame.from_dict({"category":mismatches,
+                        "uncertainty":np.log(stdev)})
+    uncertainties.to_csv("uncertainty_vs_pred.csv", index=False)
 
     correct_stdev = [s for s, m in zip(stdev.tolist(), mismatches) if m == "Correct prediction"]
     incorrect_stdev = [s for s, m in zip(stdev.tolist(), mismatches) if m == "Incorrect prediction"]

@@ -2,8 +2,6 @@
 merging the left and right reads and counting frequencies. It takes a single argument:
 the path to a target directory."""
 
-#Author: Jonathan Parkinson <jlparkinson1@gmail.com>
-
 import Bio, gzip, sys, os, numpy as np
 from Bio import Seq
 from Bio.Seq import Seq

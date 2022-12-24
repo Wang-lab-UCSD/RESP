@@ -1,8 +1,6 @@
 '''The functions here run a prespecified number of simulated annealing
 chains and save the results, using markov_chain_direv.py.'''
 
-#Author: Jonathan Parkinson <jlparkinson1@gmail.com>
-
 import os
 import sys
 import pickle
@@ -12,13 +10,16 @@ import torch
 import seaborn as sns
 import matplotlib.pyplot as plt
 import numpy as np
-from .markov_chain_direv import MarkovChainDE
-from ..utilities.model_data_loader import load_model, gen_anarci_dict
+import pandas as pd
 from scipy.cluster.hierarchy import linkage, dendrogram, fcluster
 from scipy.spatial.distance import squareform
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import matplotlib.gridspec as gridspec
 
+from .markov_chain_direv import MarkovChainDE
+from ..utilities.model_data_loader import load_model, gen_anarci_dict
+
+#TODO: Move to constants file
 full_wt = ('EVQLVESGGGLVQPGGSLRLSCAASGFTFSD--SWIHWVRQAPGKGLEWVAWISP--YGGSTYYADSVK'
         'GRFTISADTSKNTAYLQMNSLRAEDTAVYYCARRHWPGGF----------DYWGQGTLVTVSS')
 aas = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P',
@@ -145,6 +146,11 @@ def analyze_annealing_results(start_dir):
     plt.xticks([])
     plt.savefig("Clustering for final sequence set")
     plt.close()
+
+    dendrogram_data = pd.DataFrame.from_dict({"first_merged_id":z[:,0],
+                "second_merged_id":z[:,1], "distances":z[:,2],
+                "num_obs_in_cluster":z[:,3]})
+    dendrogram_data.to_csv("dendrogram.csv", index=False)
 
     #We check whether the sequences we select were present in the original
     #dataset. This isn't crucial but is nice to know.

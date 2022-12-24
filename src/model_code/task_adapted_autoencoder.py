@@ -2,8 +2,6 @@
 and to make a prediction about it (antibody or not). This is distinct
 from the "unadapted" autoencoder trained only to reconstruct its input.'''
 
-#Author: Jonathan Parkinson <jlparkinson1@gmail.com>
-
 
 import torch, os, numpy as np, time
 import torch.nn.functional as F

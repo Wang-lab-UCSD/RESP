@@ -2,8 +2,6 @@
 This is distinct from the "adapted" autoencoder trained both to
 reconstruct the input and make a prediction about it.'''
 
-#Author: Jonathan Parkinson <jlparkinson1@gmail.com>
-
 import torch, os, numpy as np, time
 import torch.nn.functional as F
 

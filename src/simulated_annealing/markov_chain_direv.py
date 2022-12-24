@@ -11,8 +11,6 @@ The accepted sequences from the chain and their scores are saved. Running
 several chains yields a set of sequences that can be merged for experimental
 evaluation.'''
 
-#Author: Jonathan Parkinson <jlparkinson1@gmail.com>
-
 import torch, random, numpy as np, os, sys, matplotlib.pyplot as plt
 from ..utilities.model_data_loader import load_model
 

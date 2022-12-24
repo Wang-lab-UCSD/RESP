@@ -3,8 +3,6 @@ that performs three-class classification on the atezolizumab
 dataset. Used as a baseline with which to compare the Bayes-by-backprop
 ordinal regression NN.'''
 
-#Author: Jonathan Parkinson <jlparkinson1@gmail.com>
-
 import os, torch, numpy as np, time
 import torch.nn.functional as F
 
