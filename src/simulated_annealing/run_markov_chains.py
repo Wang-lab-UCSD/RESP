@@ -113,7 +113,7 @@ def analyze_annealing_results(start_dir):
             score_variability = [float(line.strip()) for line in inpf]
         score_variability = np.asarray(score_variability)
     else:
-        _, score_variability = ordmod.extract_hidden_rep(encoded_all, 
+        _, score_variability = varbayes_mod.extract_hidden_rep(encoded_seqs, 
                 num_samples=1000, random_seed=0)
         with open("score_variability.txt", "w+") as outf:
             for score in score_variability.tolist():
@@ -192,8 +192,6 @@ def analyze_annealing_results(start_dir):
     for seq in clust2:
         for i, key_pos in enumerate(key_positions):
             clust2mat[aas.index(seq[key_pos]), i] += 1
-    #clust2mat[clust2mat < 1] = np.nan
-    #clust1mat[clust1mat < 1] = np.nan
     axis_labels = [f"{key_pos + 1}\n({position_dict[key_pos]})" for key_pos in 
                     key_positions]
     fig, (ax1, ax2) = plt.subplots(2, figsize=(6,12), sharex=True)

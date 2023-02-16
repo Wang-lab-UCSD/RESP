@@ -44,7 +44,7 @@ def get_wt_score(start_dir):
         onehot_wt[0,i,aas.index(letter)] = 1.0
     onehot_wt = torch.from_numpy(onehot_wt).float()
     x_wt = autoencoder.extract_hidden_rep(onehot_wt.cuda()).cpu()
-    x_wt = x[:,29:124,:].flatten(1,-1)
+    x_wt = x_wt[:,29:124,:].flatten(1,-1)
     score, _ = varbayes_model.extract_hidden_rep(x_wt, use_MAP=True)
     print(f"WT MAP score: {score.numpy().flatten()[0]}")
 
