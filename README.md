@@ -43,4 +43,16 @@ Note that processing and encoding the raw read data is time-consuming and (for
 some of the encoding types we tested) computationally expensive. We highly recommend
 downloading the pre-encoded data instead.
 
+### Raw data storage
 
+The raw read data is available on SRA. If any difficulties are encountered in
+accessing the raw data, it can also be retrieved from
+[this dropbox link](https://www.dropbox.com/sh/2iyxmsljo551cwy/AACetM27l1CbiIy7NV6a4mNra?dl=0).
+
+
+### Citations
+
+If using any of the code in this repository, please cite:
+
+Parkinson, J., Hard, R. & Wang, W. The RESP AI model accelerates the identification of tight-binding antibodies.
+Nat Commun 14, 454 (2023). https://doi.org/10.1038/s41467-023-36028-8
