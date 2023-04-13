@@ -27,9 +27,9 @@ version etc.
 
 ### Usage
 
-To reproduce any of the experiments of interest from the pipeline, you need only
-run the *run_experiments.py* script. If you do so without specifying any arguments, 
-you'll see the following screen:
+To reproduce any of the experiments of interest from the pipeline, first retrieve the raw
+data (see SETUP below), then run the *run_experiments.py* script. If you do so
+without specifying any arguments, you'll see the following screen:
 
 ![argparse_args](results_and_resources/run_experiments.png)
 
@@ -43,10 +43,9 @@ Note that processing and encoding the raw read data is time-consuming and (for
 some of the encoding types we tested) computationally expensive. We highly recommend
 downloading the pre-encoded data instead.
 
-### Raw data storage
+### Setup
 
-The raw read data is available on SRA. If any difficulties are encountered in
-accessing the raw data, it can also be retrieved from
+The raw read data and pre-encoded data can most easily be retrieved from
 [this dropbox link](https://www.dropbox.com/sh/2iyxmsljo551cwy/AACetM27l1CbiIy7NV6a4mNra?dl=0).
 
 When downloading the raw data, you will find a tarball containing encoded data and three folders named
@@ -54,8 +53,11 @@ rh01, rh02 and rh03. Extract the encoded data file and move the
 contents of the resulting folder to the encoded data folder in
 this directory. Move the three folders to the raw_data folder in
 this directory. You should then be able to proceed (and do not need
-to run downloadencodings or setup).
+to run downloadencodings or setup under *run_experiments*.
 
+The raw read data is also available under SRA, and the downloadencodings option under
+*run_experiments* can also be used to retrieve the encoded data if any issues are
+encountered with the dropbox.
 
 ### Citations
 
