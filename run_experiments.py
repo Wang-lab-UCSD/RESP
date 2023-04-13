@@ -31,20 +31,22 @@ def gen_arg_parser():
             "can execute one step at a time, or specify all to perform all "
             "of them in sequence.")
     parser.add_argument("--setup", action="store_true", help=
-            "Download the raw sequence files from SRA. NOTE: This feature "
-            "will only be available once raw reads are in SRA -- coming soon...")
+            "Provide instructions on how to retrieve the raw data and set up the "
+            "pipeline.")
     parser.add_argument("--processraw", action="store_true", help=
             "Process the raw sequences.")
     parser.add_argument("--downloadencodings", action="store_true", help=
             "Some of the embeddings described in the paper are expensive "
             "to generate (primarily fair-esm, which is computationally "
             "quite expensive). We offer the ability to download them instead "
-            "using this option.")
+            "using this option. If following the instructions under --setup, "
+            "you can skip this step.")
     parser.add_argument("--encode", action="store_true", help=
             "Encode the processed raw data using the various representations "
             "described in the paper (e.g. Unirep, one-hot etc.) Be aware that for "
             "some encodings, primarily fair-esm, this may take considerable "
-            "time -- downloading them is usually preferable.")
+            "time -- downloading them is usually preferable. If following the "
+            "instructions under --setup, you can skip this step.")
     parser.add_argument("--altprocess", action="store_true", help=
             "Process the compiled sequences into fasta files for use by other "
             "routines.")
