@@ -49,6 +49,13 @@ The raw read data is available on SRA. If any difficulties are encountered in
 accessing the raw data, it can also be retrieved from
 [this dropbox link](https://www.dropbox.com/sh/2iyxmsljo551cwy/AACetM27l1CbiIy7NV6a4mNra?dl=0).
 
+When downloading the raw data, you will find a tarball containing encoded data and three folders named
+rh01, rh02 and rh03. Extract the encoded data file and move the
+contents of the resulting folder to the encoded data folder in
+this directory. Move the three folders to the raw_data folder in
+this directory. You should then be able to proceed (and do not need
+to run downloadencodings or setup).
+
 
 ### Citations
 

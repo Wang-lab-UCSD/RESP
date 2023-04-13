@@ -102,7 +102,15 @@ def main():
         sys.exit(1)
 
     if args.setup:
-        pass
+        print("The raw data used in these experiments is available from SRA and "
+                "also from Dropbox. To download from Dropbox, use the following "
+                "link: https://www.dropbox.com/sh/2iyxmsljo551cwy/AACetM27l1CbiIy7NV6a4mNra?dl=0 \n\n."
+                "You will find a tarball containing encoded data and three folders named "
+                "rh01, rh02 and rh03.\nExtract the encoded data file and move the "
+                "contents of the resulting folder to the encoded data folder in "
+                "this directory. Move the three folders to the raw_data folder in "
+                "this directory. You should then be able to proceed (and do not need "
+                "to run downloadencodings).")
     if args.processraw:
         process_all_raw_reads(start_dir)
     if args.downloadencodings:
