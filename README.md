@@ -2,7 +2,7 @@
 This repo contains the code used to generate the results from Parkinson / Hard et al.
 2022. The main purpose of this repo is to reproduce key experiments from the paper.
 If you are interested in using the RESP pipeline to generate sequences based
-on your own protein data, consider using the [resp_protein_toolkit](https://pypi.org/project/resp-protein-toolkit/)
+on your own protein data, consider using the [resp_protein_toolkit](https://github.com/jlparkI/resp_protein_toolkit)
 instead.
 
 - [Installation](#Installation)
