@@ -105,8 +105,8 @@ def main():
 
     if args.setup:
         print("The raw data used in these experiments is available from SRA and "
-                "also from Dropbox. To download from Dropbox, use the following "
-                "link: https://www.dropbox.com/sh/2iyxmsljo551cwy/AACetM27l1CbiIy7NV6a4mNra?dl=0 \n\n."
+                "also from Zenodo. To download from Zenodo, use the following "
+                "link: https://doi.org/10.5281/zenodo.15758312 \n\n."
                 "You will find a tarball containing encoded data and three folders named "
                 "rh01, rh02 and rh03.\nExtract the encoded data file and move the "
                 "contents of the resulting folder to the encoded data folder in "

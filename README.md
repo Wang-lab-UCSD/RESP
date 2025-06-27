@@ -49,18 +49,19 @@ downloading the pre-encoded data instead.
 ### Setup
 
 The raw read data and pre-encoded data can most easily be retrieved from
-[this dropbox link](https://www.dropbox.com/sh/2iyxmsljo551cwy/AACetM27l1CbiIy7NV6a4mNra?dl=0).
+[Zenodo](https://doi.org/10.5281/zenodo.15758312). When accessing the
+Zenodo link, download the file "RESP_data.zip". Once you have downloaded
+the "RESP_data.zip" file, extract it and you will find a tarball
+containing encoded data plus three folders marked rh01, rh02 and rh03.
+Extract the encoded data file and move the contents of the resulting
+folder to the encoded_data folder in this directory. Move the rh01,
+rh02 and rh03 folders to the raw_data folder in this directory. You
+should then be able to proceed (and do not need to run
+`downloadencodings` or `setup` under *run_experiments*. You
+can also access these instructions by running the `--setup` command
+under *run_experiments* if needed.
 
-When downloading the raw data, you will find a tarball containing encoded data and three folders named
-rh01, rh02 and rh03. Extract the encoded data file and move the
-contents of the resulting folder to the encoded data folder in
-this directory. Move the three folders to the raw_data folder in
-this directory. You should then be able to proceed (and do not need
-to run downloadencodings or setup under *run_experiments*.
-
-The raw read data is also available under SRA, and the downloadencodings option under
-*run_experiments* can also be used to retrieve the encoded data if any issues are
-encountered with the dropbox.
+The raw read data is also available under SRA (see the paper for details).
 
 ### Citations
 
